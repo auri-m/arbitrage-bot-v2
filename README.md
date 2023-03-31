@@ -1,3 +1,15 @@
+
+
+npx hardhat node
+
+npx hardhat compile
+
+npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/execute_swap_hre.js --network localhost
+
+
+
+
 # Trading Bot Demo
 
 ## Technology Stack & Tools

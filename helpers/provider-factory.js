@@ -1,7 +1,9 @@
-require("dotenv").config()
-const _hre = require("hardhat")
+require("dotenv")
+    .config()
+const { ethers } = 
+    require("ethers")
 
-const getProvider = () => new _hre.ethers.providers.WebSocketProvider(process.env.WSS_ENDPOINT)
+const getProvider = () => new ethers.providers.WebSocketProvider(process.env.WSS_ENDPOINT)
 
 module.exports = {
     getProvider

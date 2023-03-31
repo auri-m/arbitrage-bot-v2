@@ -1,13 +1,23 @@
-const _ethers = require("ethers")
-const _config = require('../config.json')
-const _IERC20 = require('@openzeppelin/contracts/build/contracts/ERC20.json')
+const { 
+    ethers 
+} = require("ethers")
+const config = 
+    require('../config.json')
+const IERC20 = 
+    require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
 const getMainToken = async provider => {
-    const configAddress = _config.MainToken.Address;
-    const contract = new _ethers.Contract(configAddress, _IERC20.abi, provider)
+    const configAddress = 
+        config.MainToken.Address;
+    const contract = 
+        new ethers.Contract(
+            configAddress, 
+            IERC20.abi, 
+            provider
+        )
 
     return {
-        configName: _config.MainToken.Name,
+        configName: config.MainToken.Name,
         address: configAddress,
         decimals: 18,
         symbol: await contract.symbol(),
@@ -19,11 +29,17 @@ const getMainToken = async provider => {
 }
 
 const getInterimToken = async provider => {
-    const configAddress = _config.InterimToken.Address;
-    const contract = new _ethers.Contract(configAddress, _IERC20.abi, provider)
+    const configAddress = 
+        config.InterimToken.Address;
+    const contract = 
+        new ethers.Contract(
+            configAddress, 
+            IERC20.abi, 
+            provider
+        )
 
     return {
-        configName: _config.InterimToken.Name,
+        configName: config.InterimToken.Name,
         address: configAddress,
         decimals: 18,
         symbol: await contract.symbol(),

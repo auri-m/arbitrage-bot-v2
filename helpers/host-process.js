@@ -1,3 +1,9 @@
+const express = 
+    require('express');
+const cors = 
+    require('cors');
+const config = 
+    require('../config.json');
 const {
     logError,
     logInfo
@@ -5,15 +11,18 @@ const {
 
 try
 {   
-    const express = require('express');
-    const cors = require('cors');
-    const config = require('../config.json');
+    const application = 
+        express();
+    const port = 
+        config.Port
 
-    const application = express();
-    const port = config.Port
-
-    application.listen(port);
-    application.use(cors({ credentials: true, origin: '*' }))
+    application
+        .listen(port);
+    application
+        .use(cors({ 
+            credentials: true, 
+            origin: '*' 
+        }))
 
     logInfo({
         type: "host-start",
