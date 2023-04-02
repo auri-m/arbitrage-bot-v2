@@ -1,0 +1,8 @@
+contract
+
+test
+    !!! istestuot gerai index inside xxxx
+
+return from contract 
+
+90% of available tokens

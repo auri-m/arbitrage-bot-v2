@@ -117,7 +117,7 @@ const swap = async(
         'Swapping on': dex.Name,
     })  
 
-    // confirm the wallet has the amount to swap and also some native currency
+    // convert units to wei
     const token_amount_to_swap_in_wei = 
         ethers.utils.parseUnits(
             token_amount_to_swap, 

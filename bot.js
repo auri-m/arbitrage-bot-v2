@@ -20,9 +20,10 @@ const {
 const { 
   getPairContract, 
   getReserves, 
-  calculatePrice, 
   estimateMainTokenProfit,
-  pickArbitrageAmount
+  pickArbitrageAmount,
+  getTokenIndexInsidePair,
+  determinePotentialTradeOrder
 } = require('./helpers/token-service')
 
 const {
@@ -39,27 +40,56 @@ const main = async () => {
 
   logCurrentConfig()
 
-  const provider = getProvider();
-  const dex_1 = getDex1(provider);
-  const dex_2 = getDex2(provider);
+  const provider = 
+    getProvider();
+  const dex_1 = 
+    getDex1(provider);
+  const dex_2 = 
+    getDex2(provider);
 
-  const token0 = await getMainToken(provider);
-  const token1 = await getInterimToken(provider);
+  const token0 = 
+    await getMainToken(provider);
+  const token1 = 
+    await getInterimToken(provider);
 
-  const dex_1_PairContract = await getPairContract(dex_1.Factory, token0.address, token1.address, provider)
-  const dex_2_PairContract = await getPairContract(dex_2.Factory, token0.address, token1.address, provider)
+  const dex_1_pair_contract = 
+    await getPairContract(
+      dex_1.Factory, 
+      token0.address, 
+      token1.address, 
+      provider
+    )
+  const dex_2_pair_contract = 
+    await getPairContract(
+      dex_2.Factory, 
+      token0.address, 
+      token1.address, 
+      provider
+    )
 
-  // determine the token positions inside dex pairs
-  const dex_1_pair_token0 = await dex_1_PairContract.token0();
-  const dex_1_pair_token1 = await dex_1_PairContract.token1();
-  const dex_2_pair_token0 = await dex_2_PairContract.token0();
-  const dex_2_pair_token1 = await dex_2_PairContract.token1();
+  token0.index_Inside_Dex1_Pair = 
+    await getTokenIndexInsidePair(
+      dex_1_pair_contract, 
+      token0.address
+    );
 
-  token0.index_Inside_Dex1_Pair = getTokenPositionInsidePair(token0.address, dex_1_pair_token0, dex_1_pair_token1);
-  token0.index_Inside_Dex2_Pair = getTokenPositionInsidePair(token0.address, dex_2_pair_token0, dex_2_pair_token1);
+  token1.index_Inside_Dex1_Pair = 
+    await getTokenIndexInsidePair(
+      dex_1_pair_contract, 
+      token1.address
+    );
 
-  token1.index_Inside_Dex1_Pair = getTokenPositionInsidePair(token1.address, dex_1_pair_token0, dex_1_pair_token1);
-  token1.index_Inside_Dex2_Pair = getTokenPositionInsidePair(token1.address, dex_2_pair_token0, dex_2_pair_token1);
+  token0.index_Inside_Dex2_Pair = 
+    await getTokenIndexInsidePair(
+      dex_2_pair_contract, 
+      token0.address
+    );
+
+  token1.index_Inside_Dex2_Pair = 
+    await getTokenIndexInsidePair(
+      dex_2_pair_contract, 
+      token1.address
+    );
 
   const main_token_runtime_data = {
     type: "main-token-runtime-data",
@@ -85,18 +115,17 @@ const main = async () => {
   logInfo(interim_token_runtime_data)
   console.table(interim_token_runtime_data)
 
-
   const dex_runtime_data = {
     type: "dex-runtime-data",
     dex_1_name: dex_1.Name,
-    dex_1_pair_address: dex_1_PairContract.address,
+    dex_1_pair_address: dex_1_pair_contract.address,
     dex_2_name: dex_2.Name,
-    dex_2_pair_address: dex_2_PairContract.address,
+    dex_2_pair_address: dex_2_pair_contract.address,
   }
   logInfo(dex_runtime_data)
   console.table(dex_runtime_data)
 
-  dex_1_PairContract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
+  dex_1_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
     if (!isExecuting) {
 
       isExecuting = true
@@ -111,8 +140,8 @@ const main = async () => {
       await checkArbitrage(
         dex_1, 
         dex_2, 
-        dex_1_PairContract, 
-        dex_2_PairContract, 
+        dex_1_pair_contract, 
+        dex_2_pair_contract, 
         token0, 
         token1,
         provider
@@ -122,7 +151,7 @@ const main = async () => {
     }
   })
 
-  dex_2_PairContract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
+  dex_2_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
     if (!isExecuting) {
 
       isExecuting = true
@@ -137,8 +166,8 @@ const main = async () => {
       await checkArbitrage(
         dex_1, 
         dex_2, 
-        dex_1_PairContract, 
-        dex_2_PairContract, 
+        dex_1_pair_contract, 
+        dex_2_pair_contract, 
         token0, 
         token1,
         provider
@@ -147,7 +176,6 @@ const main = async () => {
       isExecuting = false
     }
   })
-
 
   const initialization_complete = {
     type: "initialization-complete"
@@ -166,22 +194,25 @@ const checkArbitrage = async(
   provider
 ) => {
 
-  const priceDifferencePercentage = await checkPrice(
-    dex_1.Name, 
-    dex_2.Name, 
-    dex_1_PairContract, 
-    dex_2_PairContract, 
-    token0, 
-    token1
-  )
+  const price_difference_percentage = 
+    await checkPriceDifference(
+      dex_1.Name, 
+      dex_2.Name, 
+      dex_1_PairContract, 
+      dex_2_PairContract, 
+      token0, 
+      token1
+    )
 
-  const routerPath = await determineTradePath(
-    priceDifferencePercentage, 
-    dex_1, 
-    dex_2
-  )
+  const potential_trade_order = 
+    await determinePotentialTradeOrder(
+      price_difference_percentage,
+      _min_price_difference_percentage,
+      dex_1, 
+      dex_2
+    )
 
-  if (!routerPath) {
+  if (!potential_trade_order.TradeOrderAvailable) {
 
     const entry = {
       type: "arbitrage",
@@ -196,14 +227,15 @@ const checkArbitrage = async(
     return
   }
 
-  const estimated_gas_cost = getEstimatedGasCost();
+  const estimated_gas_cost = 
+    getEstimatedGasCost();
 
   const {
     command_executed_successfully,
     estimated_profit,
     main_token_amount_required_to_buy
   } = await determineProfit(
-    routerPath, 
+    potential_trade_order,
     dex_1, 
     dex_2, 
     dex_1_PairContract, 
@@ -244,6 +276,7 @@ const checkArbitrage = async(
     return
   }
 
+  // Profitable trade
   if(_config.Constraints.ExecuteTrades){
 
     const entry = {
@@ -254,7 +287,13 @@ const checkArbitrage = async(
 
     console.log("Executing trades is enabled")
 
-    const receipt = await executeTrade(routerPath, token0.contract, token1.contract)
+    // routerPath buvo router objektai
+    const receipt = 
+      await executeTrade(
+        routerPath, 
+        token0.contract, 
+        token1.contract
+      )
     
   } else {
 
@@ -269,7 +308,7 @@ const checkArbitrage = async(
 
 }
 
-const checkPrice = async (
+const checkPriceDifference = async (
   dex1Name, 
   dex2Name, 
   dex1PairContract, 
@@ -277,16 +316,9 @@ const checkPrice = async (
   token0, 
   token1
 ) => {
-  // on chain price with decimals
-  const dex1OnChainPrice = await calculatePrice(dex1PairContract)
-  const dex2OnChainPrice = await calculatePrice(dex2PairContract)
 
-  // rounded price
-  const dex1Price = Number(dex1OnChainPrice).toFixed(0)
-  const dex2Price = Number(dex2OnChainPrice).toFixed(0)
-
-  // price difference as a percentage
-  const priceDifferencePercentage = (((dex1Price - dex2Price) / dex2Price) * 100).toFixed(2)
+  const price_difference_percentage = 
+    await calculatePriceDifferencePercentage(dex1PairContract, dex2PairContract);
 
   const entry = {
     type: "arbitrage",
@@ -302,58 +334,11 @@ const checkPrice = async (
   console.log(`${dex1Name} \t| ${token1.symbol}/${token0.symbol}\t | ${dex1Price}`)
   console.log(`${dex2Name} \t| ${token1.symbol}/${token0.symbol}\t | ${dex2Price}\n`)
 
-  return priceDifferencePercentage
-}
-
-const determineTradePath = async (
-  currentPriceDifferencePercentage, 
-  dex_1, 
-  dex_2
-) => {
-  console.log(`Determining Direction...\n`)
-  
-  // result
-  // 0 - router of the exchange to buy
-  // 1 - router of the exchnage to sell
-
-  if (currentPriceDifferencePercentage >= _min_price_difference_percentage) {
-
-    const entry = {
-      type: "arbitrage",
-      data_1: "potential arbitrage direction 1",
-      buy: dex_1.Name,
-      sell: dex_2.Name
-    }
-    logInfo(entry)
-
-    console.log(`Potential Arbitrage Direction:\n`)
-    console.log(`Buy\t -->\t ${dex_1.Name}`)
-    console.log(`Sell\t -->\t ${dex_2.Name}\n`)
-
-    return [dex_1.Router, dex_2.Router]
-
-  } else if (currentPriceDifferencePercentage <= -(_min_price_difference_percentage)) {
-
-    const entry = {
-      type: "arbitrage",
-      data_1: "potential arbitrage direction 2",
-      buy: dex_2.Name,
-      sell: dex_1.Name
-    }
-    logInfo(entry)
-
-    console.log(`Potential Arbitrage Direction:\n`)
-    console.log(`Buy\t -->\t ${dex_2.Name}`)
-    console.log(`Sell\t -->\t ${dex_1.Name}\n`)
-    return [dex_2.Router, dex_1.Router]
-
-  } else {
-    return null
-  }
+  return price_difference_percentage
 }
 
 const determineProfit = async (
-  routerPath, 
+  trade_order,
   dex_1, 
   dex_2, 
   dex_1_PairContract, 
@@ -366,44 +351,35 @@ const determineProfit = async (
 
   console.log(`Determining Profitability...\n`)
 
-  let dex_to_buy = null
-  let dex_to_sell = null
+  const dex_to_buy = trade_order.DexToBuy;
+  const dex_to_sell = trade_order.DexToSell;
+
   let token1_reserves_on_dex_to_buy = null;
   let token1_reserves_on_dex_to_sell = null;
   let token1_amount_for_arbitrage = null;
 
-  if (routerPath[0].address == dex_1.Router.address) {
+  // Get interim token reserves on both DEXes
+  if (dex_to_buy.Name == dex_1.Name) {
 
-    dex_to_buy = dex_1;
-    dex_to_sell = dex_2;
-
+    // DEX 1 is the dex to buy 
     const reserves_on_dex_to_buy = await getReserves(dex_1_PairContract)
     const reserves_on_dex_to_sell = await getReserves(dex_2_PairContract)
 
     token1_reserves_on_dex_to_buy = reserves_on_dex_to_buy[token1.index_Inside_Dex1_Pair]
     token1_reserves_on_dex_to_sell = reserves_on_dex_to_sell[token1.index_Inside_Dex2_Pair]
 
-    // reserves = await getReserves(dex_2_PairContract)
-    // reservesOnDexToSell.token0 = reserves[token0.index_Inside_Dex2_Pair]
-    // reservesOnDexToSell.token1 = reserves[token1.index_Inside_Dex2_Pair]
-    // exchangeToBuy = dex_1.Name
-    // exchangeToSell = dex_2.Name
-  } else {
+  } else if (dex_to_buy.Name == dex_2.Name) {
 
-    dex_to_buy = dex_2;
-    dex_to_sell = dex_1;
-
+    // DEX 2 is the dex to buy 
     const reserves_on_dex_to_buy = await getReserves(dex_2_PairContract)
     const reserves_on_dex_to_sell = await getReserves(dex_1_PairContract)
 
     token1_reserves_on_dex_to_buy = reserves_on_dex_to_buy[token1.index_Inside_Dex2_Pair]
     token1_reserves_on_dex_to_sell = reserves_on_dex_to_sell[token1.index_Inside_Dex1_Pair]
 
-    // reserves = await getReserves(dex_1_PairContract)
-    // reservesOnDexToSell.token0 = reserves[token0.index_Inside_Dex1_Pair]
-    // reservesOnDexToSell.token1 = reserves[token1.index_Inside_Dex1_Pair]
-    // exchangeToBuy = dex_2.Name
-    // exchangeToSell = dex_1.Name
+  } else {
+    // weird shit
+    throw `cannot determine DEXes to get token reserves`;  
   }
 
   // amount available for arbitrage is the lowest reserve
@@ -447,7 +423,7 @@ const determineProfit = async (
     // pirmas elementas -> tokenas kuri norim moket/ikelt (token0 == main token == WETH)
     // antras elementas -> tokenas kuri norim gaut (token1 == interim token == SHIB)
 
-    const amountsOnDexToBuy = await routerPath[0].getAmountsIn(
+    const amountsOnDexToBuy = await dex_to_buy.Router.getAmountsIn(
       token1_amount_for_arbitrage, 
       [token0.address, token1.address]
     )
@@ -463,7 +439,7 @@ const determineProfit = async (
     // pirmas elementas -> tokenas kuri norim moket (token1 == interim token == SHIB)
     // antras elementas -> tokenas kuri norim gaut (token0 == main token == WETH)
 
-    const amountsOnDexToSell = await routerPath[1].getAmountsOut(
+    const amountsOnDexToSell = await dex_to_sell.Router.getAmountsOut(
       token1_amount_available_on_dex_to_buy, 
       [token1.address, token0.address]
     )
@@ -484,7 +460,7 @@ const determineProfit = async (
 
     const estimated_profit = await estimateMainTokenProfit(
       token0_amount_required_to_buy_token1_on_dex_to_buy, 
-      routerPath, 
+      trade_order, 
       token0, 
       token1
     )
@@ -592,15 +568,6 @@ const executeTrade = async (_routerPath, _token0Contract, _token1Contract) => {
   // console.table(data)
 }
 
-const getTokenPositionInsidePair = (targetToken, pairToken0, pairToken1) => {
-  if(targetToken === pairToken0) {
-    return 0
-  } else if (targetToken === pairToken1){
-    return 1
-  } else {
-    throw `cannot determine token ${targetToken} possition`;   
-  }
-}
 
 const getEstimatedGasCost = () => {
   const ignoreGas = _config.Constraints.IgnoreGas;

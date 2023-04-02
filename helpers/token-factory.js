@@ -6,20 +6,17 @@ const config =
 const IERC20 = 
     require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
-const getMainToken = async provider => {
-    const configAddress = 
-        config.MainToken.Address;
+const getToken = async (token_config, provider) => {
     const contract = 
         new ethers.Contract(
-            configAddress, 
+            token_config.Address, 
             IERC20.abi, 
-            provider
-        )
+            provider)
 
     return {
-        configName: config.MainToken.Name,
-        address: configAddress,
-        decimals: 18,
+        configName: token_config.Name,
+        address: token_config.Address,
+        decimals: await contract.decimals(),
         symbol: await contract.symbol(),
         name: await contract.name(),
         contract: contract,
@@ -28,27 +25,13 @@ const getMainToken = async provider => {
     }
 }
 
-const getInterimToken = async provider => {
-    const configAddress = 
-        config.InterimToken.Address;
-    const contract = 
-        new ethers.Contract(
-            configAddress, 
-            IERC20.abi, 
-            provider
-        )
+const getMainToken = 
+    async provider => 
+        getToken(config.MainToken, provider)
 
-    return {
-        configName: config.InterimToken.Name,
-        address: configAddress,
-        decimals: 18,
-        symbol: await contract.symbol(),
-        name: await contract.name(),
-        contract: contract,
-        index_Inside_Dex1_Pair: null,   // determined from the actual dex pair
-        index_Inside_Dex2_Pair: null    // determined from the actual dex pair
-    }
-}
+const getInterimToken = 
+    async provider => 
+        getToken(config.InterimToken, provider)
 
 module.exports = {
     getMainToken,
