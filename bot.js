@@ -2,24 +2,30 @@ require('./helpers/globals')
 require("dotenv").config();
 require('./helpers/host-process')
 
-const _config = require('./config.json')
-const _ethers = require("ethers")
-const { 
-  getProvider 
+const config = 
+  require('./config.json')
+
+const {
+  ethers
+} = require("ethers")
+
+const {
+  getProvider
 } = require('./helpers/provider-factory')
-const { 
-  getDex1, 
-  getDex2 
+
+const {
+  getDex1,
+  getDex2
 } = require('./helpers/dex-factory')
 
-const { 
-  getMainToken, 
+const {
+  getMainToken,
   getInterimToken
 } = require('./helpers/token-factory')
 
-const { 
-  getPairContract, 
-  getReserves, 
+const {
+  getPairContract,
+  getReserves,
   estimateMainTokenProfit,
   pickArbitrageAmount,
   getTokenIndexInsidePair,
@@ -28,12 +34,20 @@ const {
 } = require('./helpers/token-service')
 
 const {
+  getArbitrageContract
+} = require('./helpers/contract-factory')
+
+const {
+  getAccount
+} = require('./helpers/account-factory')
+
+const {
   logError,
   logInfo
 } = require('./helpers/log-service');
 
-
-const _min_price_difference_percentage = _config.Constraints.MinPriceDifferencePercentage;
+const _min_price_difference_percentage = 
+  config.Constraints.MinPriceDifferencePercentage;
 
 let isExecuting = false
 
@@ -41,54 +55,59 @@ const main = async () => {
 
   logCurrentConfig()
 
-  const provider = 
+  const provider =
     getProvider();
-  const dex_1 = 
+  const contract =
+    getArbitrageContract(provider);
+  const account = 
+    getAccount(provider)
+
+  const dex_1 =
     getDex1(provider);
-  const dex_2 = 
+  const dex_2 =
     getDex2(provider);
 
-  const token0 = 
+  const token0 =
     await getMainToken(provider);
-  const token1 = 
+  const token1 =
     await getInterimToken(provider);
 
-  const dex_1_pair_contract = 
+  const dex_1_pair_contract =
     await getPairContract(
-      dex_1.Factory, 
-      token0.address, 
-      token1.address, 
+      dex_1.Factory,
+      token0.address,
+      token1.address,
       provider
     )
-  const dex_2_pair_contract = 
+  const dex_2_pair_contract =
     await getPairContract(
-      dex_2.Factory, 
-      token0.address, 
-      token1.address, 
+      dex_2.Factory,
+      token0.address,
+      token1.address,
       provider
     )
 
-  token0.index_Inside_Dex1_Pair = 
+  token0.index_Inside_Dex1_Pair =
     await getTokenIndexInsidePair(
-      dex_1_pair_contract, 
+      dex_1_pair_contract,
       token0.address
     );
 
-  token1.index_Inside_Dex1_Pair = 
+  token1.index_Inside_Dex1_Pair =
     await getTokenIndexInsidePair(
-      dex_1_pair_contract, 
+      dex_1_pair_contract,
       token1.address
     );
 
-  token0.index_Inside_Dex2_Pair = 
+  token0.index_Inside_Dex2_Pair =
     await getTokenIndexInsidePair(
-      dex_2_pair_contract, 
+      dex_2_pair_contract,
       token0.address
     );
 
-  token1.index_Inside_Dex2_Pair = 
+  token1.index_Inside_Dex2_Pair =
     await getTokenIndexInsidePair(
-      dex_2_pair_contract, 
+      dex_2_pair_contract,
       token1.address
     );
 
@@ -139,16 +158,19 @@ const main = async () => {
       console.table(swap_event)
 
       await checkArbitrage(
-        dex_1, 
-        dex_2, 
-        dex_1_pair_contract, 
-        dex_2_pair_contract, 
-        token0, 
+        dex_1,
+        dex_2,
+        dex_1_pair_contract,
+        dex_2_pair_contract,
+        token0,
         token1,
-        provider
+        account,
+        contract
       )
 
       isExecuting = false
+    } else {
+      console.log("isExecuting => true")
     }
   })
 
@@ -165,16 +187,19 @@ const main = async () => {
       console.table(swap_event)
 
       await checkArbitrage(
-        dex_1, 
-        dex_2, 
-        dex_1_pair_contract, 
-        dex_2_pair_contract, 
-        token0, 
+        dex_1,
+        dex_2,
+        dex_1_pair_contract,
+        dex_2_pair_contract,
+        token0,
         token1,
-        provider
+        account,
+        contract
       )
-      
+
       isExecuting = false
+    } else {
+      console.log("isExecuting => true")
     }
   })
 
@@ -185,31 +210,28 @@ const main = async () => {
   console.log("Waiting for swap event...")
 }
 
-const checkArbitrage = async(
-  dex_1, 
-  dex_2, 
-  dex_1_PairContract, 
-  dex_2_PairContract, 
-  token0, 
+const checkArbitrage = async (
+  dex_1,
+  dex_2,
+  dex_1_PairContract,
+  dex_2_PairContract,
+  token0,
   token1,
-  provider
+  account,
+  contract
 ) => {
 
-  const price_difference_percentage = 
+  const price_difference_percentage =
     await checkPriceDifference(
-      dex_1.Name, 
-      dex_2.Name, 
-      dex_1_PairContract, 
-      dex_2_PairContract, 
-      token0, 
-      token1
+      dex_1_PairContract,
+      dex_2_PairContract,
     )
 
-  const potential_trade_order = 
+  const potential_trade_order =
     await determinePotentialTradeOrder(
       price_difference_percentage,
       _min_price_difference_percentage,
-      dex_1, 
+      dex_1,
       dex_2
     )
 
@@ -218,7 +240,7 @@ const checkArbitrage = async(
     const entry = {
       type: "arbitrage",
       data_1: "no arbitrage (no trade path)",
-      data_2: priceDifferencePercentage
+      data_2: price_difference_percentage
     }
     logInfo(entry)
 
@@ -228,7 +250,19 @@ const checkArbitrage = async(
     return
   }
 
-  const estimated_gas_cost = 
+  const entry = {
+    type: "arbitrage",
+    data_1: "trade order",
+    dex_to_buy: potential_trade_order.DexToBuy.Name,
+    dex_to_sell: potential_trade_order.DexToSell.Name
+  }
+  logInfo(entry)
+
+  console.log(`\nDEX to buy => ${potential_trade_order.DexToBuy.Name}`)
+  console.log(`DEX to sell => ${potential_trade_order.DexToSell.Name}`)
+
+
+  const estimated_gas_cost =
     getEstimatedGasCost();
 
   const {
@@ -238,13 +272,13 @@ const checkArbitrage = async(
   } = await determineProfit(
     potential_trade_order.DexToBuy,
     potential_trade_order.DexToSell,
-    dex_1, 
-    dex_2, 
-    dex_1_PairContract, 
-    dex_2_PairContract,  
-    token0, 
+    dex_1,
+    dex_2,
+    dex_1_PairContract,
+    dex_2_PairContract,
+    token0,
     token1,
-    provider,
+    account,
     estimated_gas_cost
   )
 
@@ -262,7 +296,6 @@ const checkArbitrage = async(
     return
   }
 
-
   if (estimated_profit < 0) {
 
     const entry = {
@@ -279,7 +312,7 @@ const checkArbitrage = async(
   }
 
   // Profitable trade
-  if(_config.Constraints.ExecuteTrades){
+  if (config.Constraints.ExecuteTrades) {
 
     const entry = {
       type: "arbitrage",
@@ -290,13 +323,16 @@ const checkArbitrage = async(
     console.log("Executing trades is enabled")
 
     // routerPath buvo router objektai
-    const receipt = 
-      await executeTrade(
-        routerPath, 
-        token0.contract, 
-        token1.contract
-      )
-    
+    await attemptArbitrage(
+      account,
+      contract,
+      potential_trade_order.DexToBuy.Router.address,
+      potential_trade_order.DexToSell.Router.address,
+      token0,
+      token1,
+      main_token_amount_required_to_buy.toString()
+    )
+
   } else {
 
     const entry = {
@@ -311,30 +347,22 @@ const checkArbitrage = async(
 }
 
 const checkPriceDifference = async (
-  dex1Name, 
-  dex2Name, 
-  dex1PairContract, 
-  dex2PairContract, 
-  token0, 
-  token1
+  dex1PairContract,
+  dex2PairContract,
 ) => {
 
-  const price_difference_percentage = 
+  const price_difference_percentage =
     await calculatePriceDifferencePercentage(dex1PairContract, dex2PairContract);
 
   const entry = {
     type: "arbitrage",
     data_1: "check price result",
-    dex_1_name: dex1Name,
-    dex_1_price: dex1Price,
-    dex_2_name: dex2Name,
-    dex_2_price: dex2Price,
+    price_difference_percentage: price_difference_percentage
 
   }
   logInfo(entry)
 
-  console.log(`${dex1Name} \t| ${token1.symbol}/${token0.symbol}\t | ${dex1Price}`)
-  console.log(`${dex2Name} \t| ${token1.symbol}/${token0.symbol}\t | ${dex2Price}\n`)
+  console.log(`\nPrice difference: ${price_difference_percentage}`)
 
   return price_difference_percentage
 }
@@ -342,13 +370,13 @@ const checkPriceDifference = async (
 const determineProfit = async (
   dex_to_buy,
   dex_to_sell,
-  dex_1, 
-  dex_2, 
-  dex_1_PairContract, 
-  dex_2_PairContract,  
-  token0, 
+  dex_1,
+  dex_2,
+  dex_1_PairContract,
+  dex_2_PairContract,
+  token0,
   token1,
-  provider,
+  account,
   estimated_gas_cost
 ) => {
 
@@ -362,55 +390,53 @@ const determineProfit = async (
   if (dex_to_buy.Name == dex_1.Name) {
 
     // DEX 1 is the dex to buy 
-    const reserves_on_dex_to_buy = await getReserves(dex_1_PairContract)
-    const reserves_on_dex_to_sell = await getReserves(dex_2_PairContract)
+    const reserves_on_dex_to_buy = 
+      await getReserves(dex_1_PairContract)
+    const reserves_on_dex_to_sell = 
+      await getReserves(dex_2_PairContract)
 
-    token1_reserves_on_dex_to_buy = reserves_on_dex_to_buy[token1.index_Inside_Dex1_Pair]
-    token1_reserves_on_dex_to_sell = reserves_on_dex_to_sell[token1.index_Inside_Dex2_Pair]
+    token1_reserves_on_dex_to_buy = 
+      reserves_on_dex_to_buy[token1.index_Inside_Dex1_Pair]
+    token1_reserves_on_dex_to_sell = 
+      reserves_on_dex_to_sell[token1.index_Inside_Dex2_Pair]
 
   } else if (dex_to_buy.Name == dex_2.Name) {
 
     // DEX 2 is the dex to buy 
-    const reserves_on_dex_to_buy = await getReserves(dex_2_PairContract)
-    const reserves_on_dex_to_sell = await getReserves(dex_1_PairContract)
+    const reserves_on_dex_to_buy = 
+      await getReserves(dex_2_PairContract)
+    const reserves_on_dex_to_sell = 
+      await getReserves(dex_1_PairContract)
 
-    token1_reserves_on_dex_to_buy = reserves_on_dex_to_buy[token1.index_Inside_Dex2_Pair]
-    token1_reserves_on_dex_to_sell = reserves_on_dex_to_sell[token1.index_Inside_Dex1_Pair]
+    token1_reserves_on_dex_to_buy = 
+      reserves_on_dex_to_buy[token1.index_Inside_Dex2_Pair]
+    token1_reserves_on_dex_to_sell = 
+      reserves_on_dex_to_sell[token1.index_Inside_Dex1_Pair]
 
   } else {
     // weird shit
-    throw `cannot determine DEXes to get token reserves`;  
+    throw "cannot determine DEXes to get token reserves";
   }
 
   // amount available for arbitrage is the lowest reserve
-  token1_amount_for_arbitrage = pickArbitrageAmount(
-    token1_reserves_on_dex_to_buy, 
-    token1_reserves_on_dex_to_sell
-  )
+  token1_amount_for_arbitrage = 
+    pickArbitrageAmount(
+      token1_reserves_on_dex_to_buy,
+      token1_reserves_on_dex_to_sell
+    )
 
   const profitability_data_1 = {
     type: "arbitrage",
     data_1: "profitability data 1",
     dex_to_buy: dex_to_buy.Name,
-    interim_token_amount_on_dex_to_buy: _ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, 'ether'),
+    interim_token_amount_on_dex_to_buy: ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, 'ether'),
     dex_to_sell: dex_to_sell.Name,
-    interim_token_amount_on_dex_to_sell: _ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, 'ether'),
-    interim_token_amount_for_arbitrage: _ethers.utils.formatUnits(token1_amount_for_arbitrage, 'ether'),
+    interim_token_amount_on_dex_to_sell: ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, 'ether'),
+    interim_token_amount_for_arbitrage: ethers.utils.formatUnits(token1_amount_for_arbitrage, 'ether'),
   }
   logInfo(profitability_data_1)
 
-  // const log_token_data = {
-  //   'DEX To Buy': dex_to_buy.Name,
-  //   'Interim Token Amount On Dex To Buy': _ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, 'ether'),
-  //   '-': {},
-  //   'DEX To Sell': dex_to_sell.Name,
-  //   'Interim Token Amount On Dex To Sell': _ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, 'ether'),
-  //   '-': {},
-  //   'Interim Token Amount For Arbitrage': _ethers.utils.formatUnits(token1_amount_for_arbitrage, 'ether')
-  // }
-
   console.table(profitability_data_1)
-  console.log()
 
   try {
 
@@ -424,11 +450,13 @@ const determineProfit = async (
     // antras elementas -> tokenas kuri norim gaut (token1 == interim token == SHIB)
 
     const amountsOnDexToBuy = await dex_to_buy.Router.getAmountsIn(
-      token1_amount_for_arbitrage, 
+      token1_amount_for_arbitrage,
       [token0.address, token1.address]
     )
-    const token0_amount_required_to_buy_token1_on_dex_to_buy = amountsOnDexToBuy[0];
-    const token1_amount_available_on_dex_to_buy = amountsOnDexToBuy[1];
+    const token0_amount_required_to_buy_token1_on_dex_to_buy = 
+      amountsOnDexToBuy[0];
+    const token1_amount_available_on_dex_to_buy = 
+      amountsOnDexToBuy[1];
 
     // getAmountsOut(amountIn, [TOKEN_0, TOKEN_1])
     // given the "amountIn" value of TOKEN_0, this function will tell us how many TOKEN_1 we receive
@@ -440,43 +468,47 @@ const determineProfit = async (
     // antras elementas -> tokenas kuri norim gaut (token0 == main token == WETH)
 
     const amountsOnDexToSell = await dex_to_sell.Router.getAmountsOut(
-      token1_amount_available_on_dex_to_buy, 
+      token1_amount_available_on_dex_to_buy,
       [token1.address, token0.address]
     )
-    const token1_amount_available_to_sell_on_dex_to_sell = amountsOnDexToSell[0]
-    const token0_amount_received_on_dex_to_sell = amountsOnDexToSell[1]
+    const token1_amount_available_to_sell_on_dex_to_sell = 
+      amountsOnDexToSell[0]
+    const token0_amount_received_on_dex_to_sell = 
+      amountsOnDexToSell[1]
 
     const profitability_data_2 = {
       type: "arbitrage",
       data_1: "profitability data 2",
       interim_token_available_to_buy: token1_amount_available_on_dex_to_buy,
-      main_token_amount_needed: _ethers.utils.formatUnits(token0_amount_required_to_buy_token1_on_dex_to_buy.toString(), 'ether'),
-      main_token_estimated_return: _ethers.utils.formatUnits(token0_amount_received_on_dex_to_sell.toString(), 'ether')
+      main_token_amount_needed: ethers.utils.formatUnits(token0_amount_required_to_buy_token1_on_dex_to_buy.toString(), 'ether'),
+      main_token_estimated_return: ethers.utils.formatUnits(token0_amount_received_on_dex_to_sell.toString(), 'ether')
     }
     logInfo(profitability_data_2)
 
-    console.log(`Estimated amount of ${token0.symbol} needed to buy ${token1_amount_available_on_dex_to_buy} ${token1.symbol} on ${dex_to_buy.Name}\t\t|${_ethers.utils.formatUnits(token0_amount_required_to_buy_token1_on_dex_to_buy.toString(), 'ether')}`)
-    console.log(`Estimated amount of ${token0.symbol} returned after swapping ${token1_amount_available_on_dex_to_buy} ${token1.symbol} on ${dex_to_sell.Name}\t|${_ethers.utils.formatUnits(token0_amount_received_on_dex_to_sell.toString(), 'ether')}\n`)
+    console.log(`Estimated amount of ${token0.symbol} needed to buy ${token1_amount_available_on_dex_to_buy} ${token1.symbol} on ${dex_to_buy.Name}\t\t|${ethers.utils.formatUnits(token0_amount_required_to_buy_token1_on_dex_to_buy.toString(), 'ether')}`)
+    console.log(`Estimated amount of ${token0.symbol} returned after swapping ${token1_amount_available_on_dex_to_buy} ${token1.symbol} on ${dex_to_sell.Name}\t|${ethers.utils.formatUnits(token0_amount_received_on_dex_to_sell.toString(), 'ether')}\n`)
 
     const estimated_profit = await estimateMainTokenProfit(
-      token0_amount_required_to_buy_token1_on_dex_to_buy, 
+      token0_amount_required_to_buy_token1_on_dex_to_buy,
       dex_to_buy,
       dex_to_sell,
-      token0, 
+      token0,
       token1
     )
 
-    // account
-    const account = new _ethers.Wallet(process.env.PRIVATE_KEY, provider)
-
     // estimated transaction costs
-    const native_coin_balance_before_transaction = _ethers.utils.formatUnits(await account.getBalance(), 'ether')
-    const native_coin_balance_after_transaction = native_coin_balance_before_transaction - estimated_gas_cost
+    const native_coin_balance_before_transaction = 
+      ethers.utils.formatUnits(await account.getBalance(), 'ether')
+    const native_coin_balance_after_transaction = 
+      native_coin_balance_before_transaction - estimated_gas_cost
 
     // estimated main token profits
-    const token0_wallet_balance_before = Number(_ethers.utils.formatUnits(await token0.contract.balanceOf(account.address), 'ether'))
-    const token0_wallet_balance_after = estimated_profit + token0_wallet_balance_before
-    const token0_wallet_balance_difference = token0_wallet_balance_after - token0_wallet_balance_before
+    const token0_wallet_balance_before = 
+      Number(ethers.utils.formatUnits(await token0.contract.balanceOf(account.address), 'ether'))
+    const token0_wallet_balance_after = 
+      estimated_profit + token0_wallet_balance_before
+    const token0_wallet_balance_difference = 
+      token0_wallet_balance_after - token0_wallet_balance_before
 
     const profitability_data_3 = {
       type: "arbitrage",
@@ -484,6 +516,7 @@ const determineProfit = async (
       native_coin_balance_before: native_coin_balance_before_transaction,
       native_coin_balance_after: native_coin_balance_after_transaction,
       transaction_cost: estimated_gas_cost,
+      estimated_profit: estimated_profit,
       main_token_balance_before: token0_wallet_balance_before,
       main_token_balance_after: token0_wallet_balance_after,
       main_token_gained_lost: token0_wallet_balance_difference
@@ -491,13 +524,13 @@ const determineProfit = async (
     logInfo(profitability_data_3)
 
     const log_data = {
-      'Native Coin Balance Before': native_coin_balance_before_transaction,
-      'Native Coin Balance After': native_coin_balance_after_transaction,
-      'Transaction Cost': estimated_gas_cost,
-      '-': {},
-      'Main Token Balance Before': token0_wallet_balance_before,
-      'Main Token Balance After': token0_wallet_balance_after,
-      'Main Token Gained/Lost': token0_wallet_balance_difference
+      "Native Coin Balance Before": native_coin_balance_before_transaction,
+      "Native Coin Balance After": native_coin_balance_after_transaction,
+      "Transaction Cost": estimated_gas_cost,
+      "-": {},
+      "Main Token Balance Before": token0_wallet_balance_before,
+      "Main Token Balance After": token0_wallet_balance_after,
+      "Main Token Gained/Lost": token0_wallet_balance_difference,
     }
     console.table(log_data)
     console.log()
@@ -514,67 +547,111 @@ const determineProfit = async (
 
     return {
       command_executed_successfully: false,
-      estimated_profit : 0,
+      estimated_profit: 0,
       main_token_amount_required_to_buy: 0
     }
   }
 }
 
-const executeTrade = async (_routerPath, _token0Contract, _token1Contract) => {
-  // console.log(`Attempting Arbitrage...\n`)
+const attemptArbitrage = async (
+  account,
+  contract,
+  router_address_to_buy,
+  router_address_to_sell,
+  main_token,
+  interim_token,
+  loan_amount
+) => {
 
-  // let startOnUniswap
+  console.log("Attempting Trade...\n")
 
-  // if (_routerPath[0]._address == dex_1.Router._address) {
-  //   startOnUniswap = true
-  // } else {
-  //   startOnUniswap = false
-  // }
+  // balances before trade
+  const contract_main_token_balance_before_trade_in_wei = 
+    await main_token.contract.balanceOf(contract.address)
+  const account_balance_before_trade_in_wei = 
+    await account.getBalance()
 
-  // // Create Signer
-  // const account = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+  const transaction = 
+    await contract
+      .connect(account)
+      .requestLoanAndExecuteTrade(
+        router_address_to_buy,
+        router_address_to_sell,
+        main_token.address,
+        interim_token.address,
+        loan_amount
+      )
 
-  // // Fetch token balances before
-  // const tokenBalanceBefore = await _token0Contract.balanceOf(account.address)
-  // const ethBalanceBefore = await account.getBalance()
+  await transaction.wait()
 
-  // if (config.PROJECT_SETTINGS.isDeployed) {
-  //   const transaction = await arbitrage.connect(account).executeTrade(startOnUniswap, _token0Contract.address, _token1Contract.address, amount)
-  //   const receipt = await transaction.wait()
-  // }
+  console.log("Trade Complete\n")
 
-  // console.log(`Trade Complete:\n`)
+  // balances after trade
+  const contract_main_token_balance_after_trade_in_wei = 
+    await main_token.contract.balanceOf(contract.address)
+  const account_balance_after_trade_in_wei = 
+    await account.getBalance()
+  
+  // main token stats
+  const contract_main_token_balance_before_trade = 
+    ethers.utils.formatUnits(
+      contract_main_token_balance_before_trade_in_wei, 
+      "ether"
+    );
+  const contract_main_token_balance_after_trade = 
+    ethers.utils.formatUnits(
+      contract_main_token_balance_after_trade_in_wei, 
+      "ether"
+    );
+  const contract_main_token_difference = 
+    Number(contract_main_token_balance_after_trade) - Number(contract_main_token_balance_before_trade)
 
-  // // Fetch token balances after
-  // const tokenBalanceAfter = await _token0Contract.balanceOf(account.address)
-  // const ethBalanceAfter = await account.getBalance()
+  // native coint stats
+  const account_balance_before_trade = 
+    ethers.utils.formatUnits(
+      account_balance_before_trade_in_wei, 
+      "ether"
+    );
+  const account_balance_after_trade = 
+    ethers.utils.formatUnits(
+      account_balance_after_trade_in_wei, 
+      "ether"
+    );
+  const transaction_cost = 
+    Number(account_balance_before_trade) - Number(account_balance_after_trade)
 
-  // const tokenBalanceDifference = tokenBalanceAfter - tokenBalanceBefore
-  // const ethBalanceDifference = ethBalanceBefore - ethBalanceAfter
+  const trade_stats = {
+    type: "arbitrage",
+    data_1: "trade",
+    contract_main_token_balance_before_trade: contract_main_token_balance_before_trade,
+    contract_main_token_balance_after_trade: contract_main_token_balance_after_trade,
+    contract_main_token_difference: contract_main_token_difference,
+    account_balance_before_trade: account_balance_before_trade,
+    account_balance_after_trade: account_balance_after_trade,
+    transaction_cost: transaction_cost
+  }
+  logInfo(trade_stats)
 
-  // const data = {
-  //   'ETH Balance Before': ethers.utils.formatUnits(ethBalanceBefore, 'ether'),
-  //   'ETH Balance After': ethers.utils.formatUnits(ethBalanceAfter, 'ether'),
-  //   'ETH Spent (gas)': ethers.utils.formatUnits(ethBalanceDifference.toString(), 'ether'),
-  //   '-': {},
-  //   'WETH Balance BEFORE': ethers.utils.formatUnits(tokenBalanceBefore, 'ether'),
-  //   'WETH Balance AFTER': ethers.utils.formatUnits(tokenBalanceAfter, 'ether'),
-  //   'WETH Gained/Lost': ethers.utils.formatUnits(tokenBalanceDifference.toString(), 'ether'),
-  //   '-': {},
-  //   'Total Gained/Lost': `${ethers.utils.formatUnits((tokenBalanceDifference - ethBalanceDifference).toString(), 'ether')} ETH`
-  // }
-
-  // console.table(data)
+  const log_data = {
+    "Native Coin Balance Before": account_balance_before_trade,
+    "Native Coin Balance After": account_balance_after_trade,
+    "Transaction Cost": transaction_cost,
+    "-": {},
+    "Main Token Balance Before": contract_main_token_balance_before_trade,
+    "Main Token Balance After": contract_main_token_balance_after_trade,
+    "Main Token Gained/Lost": contract_main_token_difference
+  }
+  console.table(log_data)
 }
 
 
 const getEstimatedGasCost = () => {
-  const ignoreGas = _config.Constraints.IgnoreGas;
-  if(ignoreGas)
+  const ignoreGas = config.Constraints.IgnoreGas;
+  if (ignoreGas)
     return 0
 
-  const gasLimit = _config.Constraints.GasLimit; 
-  const gasPrice = _config.Constraints.GasPrice;
+  const gasLimit = config.Constraints.GasLimit;
+  const gasPrice = config.Constraints.GasPrice;
 
   return gasLimit * gasPrice
 }
@@ -582,23 +659,24 @@ const getEstimatedGasCost = () => {
 const logCurrentConfig = () => {
   logInfo({
     type: "static-config",
-    port: _config.Port,
-    chain: _config.Chain,
-    main_token_name: _config.MainToken.Name,
-    main_token_address: _config.MainToken.Address,
-    interim_token_name: _config.InterimToken.Name,
-    interim_token_address: _config.InterimToken.Address,
-    dex_1_name: _config.Dex_1.Name,
-    dex_1_router: _config.Dex_1.RouterAddress,
-    dex_1_factory: _config.Dex_1.FactoryAddress,
-    dex_2_name: _config.Dex_2.Name,
-    dex_2_router: _config.Dex_2.RouterAddress,
-    dex_2_factory: _config.Dex_2.FactoryAddress,
-    constraints_execute_trades: _config.Constraints.ExecuteTrades,
-    constraints_min_price_difference_percentage: _config.Constraints.MinPriceDifferencePercentage,
-    constraints_ignore_gas: _config.Constraints.IgnoreGas,
-    constraints_gas_limit: _config.Constraints.GasLimit,
-    constraints_gas_price: _config.Constraints.GasPrice
+    port: config.Port,
+    chain: config.Chain,
+    contract_address: config.ContractAddress,
+    main_token_name: config.MainToken.Name,
+    main_token_address: config.MainToken.Address,
+    interim_token_name: config.InterimToken.Name,
+    interim_token_address: config.InterimToken.Address,
+    dex_1_name: config.Dex_1.Name,
+    dex_1_router: config.Dex_1.RouterAddress,
+    dex_1_factory: config.Dex_1.FactoryAddress,
+    dex_2_name: config.Dex_2.Name,
+    dex_2_router: config.Dex_2.RouterAddress,
+    dex_2_factory: config.Dex_2.FactoryAddress,
+    constraints_execute_trades: config.Constraints.ExecuteTrades,
+    constraints_min_price_difference_percentage: config.Constraints.MinPriceDifferencePercentage,
+    constraints_ignore_gas: config.Constraints.IgnoreGas,
+    constraints_gas_limit: config.Constraints.GasLimit,
+    constraints_gas_price: config.Constraints.GasPrice
   })
 }
 

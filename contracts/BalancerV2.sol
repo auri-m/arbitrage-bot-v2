@@ -48,9 +48,9 @@ contract BalancerV2 is IFlashLoanRecipient {
         _version = version;
     }
 
-    receive() external payable { console.log("receive called"); }
+    receive() external payable { }
 
-    fallback() external payable { console.log("fallback called"); }
+    fallback() external payable { }
 
     function requestLoanAndExecuteTrade(
         address dexToBuyRouterAddress,
@@ -60,37 +60,8 @@ contract BalancerV2 is IFlashLoanRecipient {
         uint256 loanAmount
     ) external {
 
-        console.log("inside requestLoanAndExecuteTrade");
-        console.log("dexToBuyRouterAddress =>", dexToBuyRouterAddress);
-        console.log("dexToSellRouterAddress =>", dexToSellRouterAddress);
-        console.log("mainTokenAddress =>", mainTokenAddress);
-        console.log("interimTokenAddress =>", interimTokenAddress);
-        console.log("loanAmount =>", loanAmount);
-
-        console.log("0");
-
         // encode input data for later use in the callback
-        IERC20 aac = IERC20(mainTokenAddress);
-
-        console.log("0_1");
-
-        console.log(address(this));
-        console.log(address(aac));
-
-        console.log("0_2");
-        //            0x1f720e7952650ed8ca142febd52acbe8b7a21741
-        address aaa = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-
-        // 0x1f720e7952650ed8ca142febd52acbe8b7a21741
-        //console.log(aac.symbol());
-        //console.log(aac.name());
-        console.log(aac.balanceOf(aaa));
-
-        console.log("0_3");
-
         uint256 mainTokenBalanceBeforeTrade = IERC20(mainTokenAddress).balanceOf(address(this));
-
-        console.log("1");
 
         bytes memory userData = abi.encode(
             dexToBuyRouterAddress,
@@ -100,18 +71,12 @@ contract BalancerV2 is IFlashLoanRecipient {
             mainTokenBalanceBeforeTrade
         );
 
-        console.log("2");
-
         // move stuff into arrays to match the balancer interface
         IERC20[] memory tokens = new IERC20[](1);
         tokens[0] = IERC20(mainTokenAddress);
 
-        console.log("3");
-
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = loanAmount;
-
-        console.log("4");
 
         // call flashloan provider
         IBalancerVault(_vault).flashLoan(
@@ -129,8 +94,6 @@ contract BalancerV2 is IFlashLoanRecipient {
         bytes memory userData
     ) external override 
     {   
-        console.log("flashloan received");
-
         // make sure the flashloan provider called this
         require(
             msg.sender == _vault,
@@ -146,19 +109,11 @@ contract BalancerV2 is IFlashLoanRecipient {
             uint256 mainTokenBalanceBeforeTrade
         ) = abi.decode(userData, (address, address, address, address, uint256));
 
-        console.log("main token balance before loan:", mainTokenBalanceBeforeTrade);
-
         IERC20 mainTokenBorrowed = tokens[0];
         uint256 amountBorrowed = amounts[0];      
 
-        console.log("token borrowed:", address(mainTokenBorrowed));
-        console.log("borrowed amount:", amountBorrowed);
-
-
         // check if we actually got the loan
         uint256 mainTokenBalanceAfterLoan = mainTokenBorrowed.balanceOf(address(this));
-
-        console.log("main token balance after loan:", mainTokenBalanceAfterLoan);
 
         require(
             amountBorrowed + mainTokenBalanceBeforeTrade == mainTokenBalanceAfterLoan,
@@ -189,17 +144,12 @@ contract BalancerV2 is IFlashLoanRecipient {
             (block.timestamp + 1200)
         );
 
-        console.log("buy executed successfully");
-
         // sell path param => opposite of buy, buy main tokens for interim tokens
         address[] memory sellPath = new address[](2);
         sellPath[0] = interimTokenAddress;
         sellPath[1] = mainTokenAddress;
 
         uint256 interimTokenAmountAvailableToSell = IERC20(interimTokenAddress).balanceOf(address(this));
-
-        console.log("main token balance after buy:", IERC20(mainTokenAddress).balanceOf(address(this)));
-        console.log("interim token balance after buy:", interimTokenAmountAvailableToSell);
 
         // allow the sell router to use our interim tokens 
         require(
@@ -209,26 +159,17 @@ contract BalancerV2 is IFlashLoanRecipient {
 
         routerToSell.swapExactTokensForTokens(
             interimTokenAmountAvailableToSell,
-            0,
+            amountBorrowed,
             sellPath,
             address(this),
             (block.timestamp + 1200)
         );
-
-        console.log("sell executed successfully");
-
-        console.log("main token after sell:", IERC20(mainTokenAddress).balanceOf(address(this)));
-        console.log("interim token after sell:", IERC20(interimTokenAddress).balanceOf(address(this)));        
-
+ 
         // return the loan 
         mainTokenBorrowed.transfer(_vault, amountBorrowed);
 
-        console.log("loan returned");
-
         // check if we made any profit
         uint256 finalMainTokenBalance = mainTokenBorrowed.balanceOf(address(this));
-
-        console.log("final main token balance:", finalMainTokenBalance);
 
         require(
             finalMainTokenBalance > mainTokenBalanceBeforeTrade,
@@ -238,22 +179,16 @@ contract BalancerV2 is IFlashLoanRecipient {
 
     function getBalance() public view returns (uint) 
     {
-        console.log("getBalance called");
-
         return address(this).balance;
     }
 
     function getTokenBalance(address tokenAddress) public view returns (uint) 
     {
-        console.log("getTokenBalance called");
-
         return IERC20(tokenAddress).balanceOf(address(this));
     }
 
     function withdraw() public onlyOwner 
     {
-        console.log("withdraw called");
-
         uint amount = address(this).balance;
 
         (bool success, ) = _owner.call{value: amount}("");
@@ -262,8 +197,6 @@ contract BalancerV2 is IFlashLoanRecipient {
 
     function withdrawToken(address tokenAddress) public onlyOwner 
     {
-        console.log("withdrawToken called");
-
         uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
         IERC20(tokenAddress).transfer(_owner, balance);
     }

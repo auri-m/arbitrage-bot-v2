@@ -245,7 +245,7 @@ const checkArbitrage = async (
     const entry = {
       type: "arbitrage",
       data_1: "no arbitrage (no trade path)",
-      data_2: priceDifferencePercentage
+      data_2: price_difference_percentage
     }
     logInfo(entry)
 

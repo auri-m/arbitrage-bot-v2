@@ -5,9 +5,12 @@ const {
 const fs = 
     require("fs")
 const path = 
-require("path")
+    require("path")
+const IERC20 = 
+    require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
-const contract_address = "0x9e7F7d0E8b8F38e3CF2b3F7dd362ba2e9E82baa4";
+const contract_address = "0x1f720E7952650ED8Ca142feBD52aCBe8b7A21741";
+const token_address = "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
 
 const main = async () => {
 
@@ -26,7 +29,9 @@ const main = async () => {
             signer
         );
 
-    await logOwnerAndVersion(contract);
+    // await logOwnerAndVersion(contract);
+
+    await checkContractTokenBalance(contract_address, token_address, provider);
 }
 
 const getContractAbi = () => {
@@ -54,6 +59,25 @@ const logOwnerAndVersion = async (contract) => {
 
     console.log(`\ncontract owner => ${owner}`);
     console.log(`contract version => ${version}`);
+}
+
+const checkContractTokenBalance = async (
+    contract_address, 
+    token_address, 
+    provider
+) => {
+
+    const token_contract = 
+        new ethers.Contract(
+            token_address, 
+            IERC20.abi, 
+            provider
+        )
+
+    const balance_in_wei = 
+        await token_contract.balanceOf(contract_address)
+    
+    console.log(`Balance => ${ethers.utils.formatUnits(balance_in_wei, "ether")}`)
 }
 
 main()

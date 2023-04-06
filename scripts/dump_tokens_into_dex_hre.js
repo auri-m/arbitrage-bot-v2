@@ -27,6 +27,8 @@ const default_decimals = 18;
 
 const main = async () => {
 
+    console.log("initializing...");
+
     // initialize
     const {
         main_token,
@@ -36,10 +38,12 @@ const main = async () => {
         dex_1_pair_contract,
         dex_2_pair_contract
     } = await init();
+
+    console.log("initialized");
     
     // some variable mapping to make the logic clearer
-    const dex_to_swap = dex_1
-    const dex_to_swap_pair_contract = dex_1_pair_contract;
+    const dex_to_swap = dex_2
+    const dex_to_swap_pair_contract = dex_2_pair_contract;
     const token_to_swap = interim_token;
     const token_to_receive = main_token;
     const wallet_to_impersonate = "0x509db14ae32a43b98c6427bea50d0915c38c0196";
@@ -48,6 +52,8 @@ const main = async () => {
     const price_before_swap = 
         await calculatePrice(dex_to_swap_pair_contract)
 
+    console.log("swaping...");
+    
     // swap
     await swap(
         dex_to_swap, 
@@ -70,14 +76,24 @@ const main = async () => {
 const init = async() => {
     const provider = 
         getProvider();
+    console.log("provider - done");
+
     const dex_1 = 
         getDex1(provider);
+    console.log("dex 1 - done");
+
     const dex_2 = 
         getDex2(provider);
+    console.log("dex 2 - done");
+    
     const main_token = 
         await getMainToken(provider);
+    console.log("main token - done");
+    
     const interim_token = 
         await getInterimToken(provider);
+    console.log("interim token - done");
+
     const dex_1_pair_contract = 
         await getPairContract(
             dex_1.Factory, 
@@ -85,6 +101,8 @@ const init = async() => {
             interim_token.address, 
             provider
         );
+    console.log("dex 1 pair contract - done");
+
     const dex_2_pair_contract = 
         await getPairContract(
             dex_2.Factory, 
@@ -92,6 +110,7 @@ const init = async() => {
             interim_token.address, 
             provider
         );
+    console.log("dex 2 pair contract - done");
     
     return {
         main_token,
