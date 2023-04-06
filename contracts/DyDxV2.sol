@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
@@ -146,7 +146,7 @@ contract DyDxFlashLoan is Structs {
     }
 }
 
-contract Arbitrage is DyDxFlashLoan {
+contract DyDxV2 is DyDxFlashLoan {
     IUniswapV2Router02 public immutable sRouter;
     IUniswapV2Router02 public immutable uRouter;
 

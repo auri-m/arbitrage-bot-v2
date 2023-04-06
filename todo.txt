@@ -1,8 +1,36 @@
 contract
 
-test
-    !!! istestuot gerai index inside xxxx
-
 return from contract 
 
 90% of available tokens
+
+
+reiks atskirai leidinet ant nauju instance'u kad kainos butu vienodos
+
+1. restart node'a
+2. DAPP manipulate prices
+3. DAPP Bot su outputu
+
+1. restart node'a
+2. manipulate prices
+3. Mano botas su outputu
+
+
+testuose veikia sukeistas variantas
+    suveike kai pakeiciau buy ir sell addressus paduodamus i contracta
+    realiai veikia 
+        manipulate (Mes dumpinam tokenus i Uniswap)
+        buy on Sushiswap (swapOnSushiswap)
+        sell on Uniswap (swapOnUniswap)
+
+- padarom kad musu veikti
+    loginimas
+    objectai
+    ir t.t.
+
+- reikia parasyti scripta kuris balanca patikrina 
+
+- leidziam abu ir tuninam kol gausis normaliai
+- tada leisim viena ir testuosim ivairius variantus (i viena dex'a metam pingus, paskui i kita ir t.t.)
+
+

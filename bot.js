@@ -23,7 +23,8 @@ const {
   estimateMainTokenProfit,
   pickArbitrageAmount,
   getTokenIndexInsidePair,
-  determinePotentialTradeOrder
+  determinePotentialTradeOrder,
+  calculatePriceDifferencePercentage
 } = require('./helpers/token-service')
 
 const {
@@ -235,7 +236,8 @@ const checkArbitrage = async(
     estimated_profit,
     main_token_amount_required_to_buy
   } = await determineProfit(
-    potential_trade_order,
+    potential_trade_order.DexToBuy,
+    potential_trade_order.DexToSell,
     dex_1, 
     dex_2, 
     dex_1_PairContract, 
@@ -338,7 +340,8 @@ const checkPriceDifference = async (
 }
 
 const determineProfit = async (
-  trade_order,
+  dex_to_buy,
+  dex_to_sell,
   dex_1, 
   dex_2, 
   dex_1_PairContract, 
@@ -350,9 +353,6 @@ const determineProfit = async (
 ) => {
 
   console.log(`Determining Profitability...\n`)
-
-  const dex_to_buy = trade_order.DexToBuy;
-  const dex_to_sell = trade_order.DexToSell;
 
   let token1_reserves_on_dex_to_buy = null;
   let token1_reserves_on_dex_to_sell = null;
@@ -460,7 +460,8 @@ const determineProfit = async (
 
     const estimated_profit = await estimateMainTokenProfit(
       token0_amount_required_to_buy_token1_on_dex_to_buy, 
-      trade_order, 
+      dex_to_buy,
+      dex_to_sell,
       token0, 
       token1
     )
@@ -510,8 +511,6 @@ const determineProfit = async (
 
     logError(error)
     console.log(error)
-    console.log(`\nError occured while trying to determine profitability...\n`)
-    console.log(`This can typically happen because of liquidity issues, see README for more information.\n`)
 
     return {
       command_executed_successfully: false,

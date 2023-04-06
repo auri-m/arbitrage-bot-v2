@@ -160,13 +160,99 @@ describe("token service", () => {
         });
     })
 
-    describe("determinePotentialTradeOrder", async () => {
+    describe("getPairContract", async () => {
 
-        it("should correctly determine the order", async () => {
-           
-            expect(1)
-                .to.equal(2)
+        it("should return a token pair", async () => {
+            const pair_contract = 
+                await token_service.getPairContract(
+                    dex_1.Factory, 
+                    main_token.address, 
+                    interim_token.address, 
+                    provider
+                )
+        
+            expect(pair_contract.address.length)
+                .to.be.greaterThan(3);
         })
+
+        it("should return the same pair regardless of the token order", async () => {
+            const pair_contract_1 = 
+                await token_service.getPairContract(
+                    dex_1.Factory, 
+                    main_token.address, 
+                    interim_token.address, 
+                    provider
+                )
+            // change the token order
+            const pair_contract_2 = 
+                await token_service.getPairContract(
+                    dex_1.Factory, 
+                    interim_token.address, 
+                    main_token.address, 
+                    provider
+                )
+            
+            // the pair address should still the same
+            expect(pair_contract_1.address)
+                .to.equal(pair_contract_2.address)
+        });
+    })
+
+    describe("determinePotentialTradeOrder", async () => {
+        [
+            {
+                min_percentage: 5,
+                current_percentage: 10,
+                expected_dex_to_buy: "QuickswapV2",
+                expected_dex_to_sell: "SushiSwapV2"
+            },
+            {
+                min_percentage: 5,
+                current_percentage: 5,
+                expected_dex_to_buy: "QuickswapV2",
+                expected_dex_to_sell: "SushiSwapV2"
+            },
+            {
+                min_percentage: 5,
+                current_percentage: -10,
+                expected_dex_to_buy: "SushiSwapV2",
+                expected_dex_to_sell: "QuickswapV2"
+            },
+            {
+                min_percentage: 5,
+                current_percentage: -5,
+                expected_dex_to_buy: "SushiSwapV2",
+                expected_dex_to_sell: "QuickswapV2"
+            }
+        ].forEach((x) => {
+            const header = `should correctly determine the trade order for: 
+                min: ${x.min_percentage} 
+                current: ${x.current_percentage}
+                dex to buy: ${x.expected_dex_to_buy}
+                dex to sell: ${x.expected_dex_to_sell}`
+
+            it(header, async () => {
+
+                const {
+                    TradeOrderAvailable,
+                    DexToBuy,
+                    DexToSell
+                } = await token_service.determinePotentialTradeOrder(
+                    x.current_percentage,
+                    x.min_percentage,
+                    dex_1,
+                    dex_2
+                )
+
+                expect(TradeOrderAvailable)
+                    .to.equal(true)
+                expect(DexToBuy.Name)
+                    .to.equal(x.expected_dex_to_buy)
+                expect(DexToSell.Name)
+                    .to.equal(x.expected_dex_to_sell)
+            });
+        });
+        
     })
 
 })
