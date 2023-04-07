@@ -25,6 +25,7 @@
         "MinPriceDifferencePercentage": 0.5,
         "IgnoreGas": true,
         "GasLimit": 600000,
-        "GasPrice": 0.0093
+        "GasPrice": 0.0093,
+        "RemoteLoggingEnabled": false
     }
 }

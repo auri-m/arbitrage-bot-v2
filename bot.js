@@ -244,7 +244,8 @@ const checkArbitrage = async (
     }
     logInfo(entry)
 
-    console.log(`No Arbitrage (No Trade Path) Currently Available\n`)
+    console.log(`No Arbitrage (No Trade Path) Currently Available`)
+    console.log(`Price Difference Only ${price_difference_percentage}\n`)
     console.log(`-----------------------------------------\n`)
     isExecuting = false
     return
