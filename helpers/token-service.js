@@ -49,12 +49,6 @@ const getReserves = async (pairContract) => {
     ]
 }
 
-const calculatePrice = async (pairContract) => {
-    const [x, y] = 
-        await getReserves(pairContract)
-    return big(x).div(big(y))
-}
-
 const calculatePriceForTokens = async (
     pair_contract, 
     main_token_address, 
@@ -114,14 +108,6 @@ const calculatePriceForTokenIndexes = async (
     };
 }
 
-
-const pickArbitrageAmount = (amount1, amount2) => {
-    if(big(amount1).lt(big(amount2))){
-        return amount1;
-    }
-    return amount2;
-}
-
 const getDefaultArbitrageAmount = async (    
     dex_to_buy,
     main_token_address, 
@@ -130,7 +116,7 @@ const getDefaultArbitrageAmount = async (
 
     try {
         const min_amounts = await dex_to_buy.Router.getAmountsOut(
-            ethers.utils.parseUnits(1, "ether"),
+            ethers.utils.parseUnits("1", "ether"),
             [main_token_address, interim_token_address]
         )
     
@@ -138,7 +124,7 @@ const getDefaultArbitrageAmount = async (
 
     } catch (error){
 
-        logError(error)
+        // logError(error)
         console.log(error)
 
         return null;
@@ -172,7 +158,7 @@ const determineProfitForInterimTokenAmount = async (
         // shows how many TOKEN_1 we get from "amountIn" of TOKEN_0
         const amount_on_dex_to_sell = await dex_to_sell.Router.getAmountsOut(
             interim_token_amount_to_verify,
-            [token1.address, token0.address]
+            [interim_token_address, main_token_address]
         )
         
         // kiek main tokenu gausim pardave
@@ -195,7 +181,7 @@ const determineProfitForInterimTokenAmount = async (
         }
     } catch (error) {
 
-        logError(error)
+        // logError(error)
         console.log(error)
 
         return {
@@ -208,188 +194,6 @@ const determineProfitForInterimTokenAmount = async (
         }
     }
 
-}
-
-const pickOptimalArbitrageAmmount = async (
-    interim_token_reserves_on_dex_to_buy, 
-    dex_to_sell, 
-    dex_to_buy,
-    main_token_address, 
-    interim_token_address,
-    current_main_token_balance
-) => {
-
-    // cia biski negerai 
-    // man reikia rasti max amounta main tokenu
-    // kad pardavaus butu daugiau pinigu negu reikia pasiskolint
-
-
-
-
-
-    console.log(`total reserves 1 => ${interim_token_reserves_on_dex_to_buy}`)
-
-    const token_path = [
-        interim_token_address, 
-        main_token_address
-    ]
-
-    const mid_ratio = 0.5;
-    const go_higer_ranges = [0.75, 0.9]
-    const go_lower_ranges = [0.25, 0.1, 0.05]
-    const interim_token_reserves = big(interim_token_reserves_on_dex_to_buy)
-
-    // default last profitable amount 
-    //  => amount of interim tokes we can get for 1 main token   
-    const min_amounts = await dex_to_buy.Router.getAmountsOut(
-        ethers.utils.parseUnits(1, "ether"),
-        [main_token_address, interim_token_address]
-    )
-    let last_profitable_amount = min_amounts[1];
-    let last_profitable_range;
-
-    console.log("1")
-
-    // starting point
-    const mid_reserve = 
-        interim_token_reserves.times(mid_ratio).round();
-
-    console.log(`total reserves 2 => ${interim_token_reserves.toFixed()}`)
-    console.log(`mid reserves => ${mid_reserve.toFixed()}`)
-
-    
-    const main_token_amount_to_receive_on_dex_to_sell = 
-        await checkMainTokenAmountReceived(
-            dex_to_sell, 
-            token_path, 
-            mid_reserve.toFixed()
-        );
-
-    console.log("2")
-    
-    if(main_token_amount_to_receive_on_dex_to_sell > current_main_token_balance) {
-
-        last_profitable_amount = mid_reserve;
-        last_profitable_range = mid_ratio;
-
-        console.log("3")
-
-        for(let i = 0; i < go_higer_ranges.length; i++){
-
-            const rsrv = interim_token_reserves.times(go_higer_ranges[i]).round();
-            const reserve_amount =  
-                await checkMainTokenAmountReceived(
-                    dex_to_sell, 
-                    token_path, 
-                    rsrv.toFixed()
-                );
-            if(reserve_amount < current_main_token_balance){
-                break;
-            }                  
-    
-            last_profitable_amount = reserve_amount
-            last_profitable_range = go_higer_ranges[i]
-    
-        }
-    } else {
-
-        console.log("4")
-
-        for(let i = 0; i < go_lower_ranges.length; i++){
-
-            const rsrv = interim_token_reserves.times(go_lower_ranges[i]).round();
-            const reserve_amount =  
-                await checkMainTokenAmountReceived(
-                    dex_to_sell, 
-                    token_path, 
-                    rsrv.toFixed()
-                );
-            if(reserve_amount > current_main_token_balance){
-                last_profitable_amount = reserve_amount
-                last_profitable_range = go_lower_ranges[i]
-                break;
-            }                        
-        }
-    }
-
-    console.log(`\nTotal amount of interim tokes for arbitrage => ${interim_token_reserves_on_dex_to_buy}`)
-    console.log(`Optimal amount => ${last_profitable_amount.toFixed()}`)
-    console.log(`Optimal amount range => ${last_profitable_range}`)
-
-    return last_profitable_amount.toFixed();
-}
-
-
-const checkMainTokenAmountReceived = async (
-    dex_to_sell, 
-    token_path, 
-    interim_token_amount_to_check
-) => {
-
-    // getAmountsOut(amountIn, [TOKEN_0, TOKEN_1])
-    // given the "amountIn" value of TOKEN_0, this function will tell us how many TOKEN_1 we receive
-    // shows how many TOKEN_1 we get from "amountIn" of TOKEN_0
-
-
-    const tokens_from_dex_to_sell = 
-        await dex_to_sell.Router.getAmountsOut(
-            interim_token_amount_to_check.toString(),
-            token_path
-        )
-    return tokens_from_dex_to_sell[1] // main token (token_path[1])
-}
-
-
-
-const estimateMainTokenProfit = async (
-    token0_amount_required_to_buy_token1_on_dex_to_buy, 
-    dex_to_buy, 
-    dex_to_sell, 
-    token0, 
-    token1
-) => {
-
-    const dexToBuy_Router = 
-        dex_to_buy.Router;
-    const dexToSell_Router = 
-        dex_to_sell.Router;
-
-    const trade1 = 
-        await dexToBuy_Router.getAmountsOut(
-            token0_amount_required_to_buy_token1_on_dex_to_buy, 
-            [token0.address, token1.address]
-        )
-    const amount_of_token0_spent_on_dex_to_buy = 
-        trade1[0]
-    const amount_of_token1_received_on_dex_to_buy = 
-        trade1[1]
-
-    console.log(`estimateMainTokenProfit => token 1 bought ${ethers.utils.formatUnits(amount_of_token1_received_on_dex_to_buy, "ether")}`)
-
-    const trade2 = 
-        await dexToSell_Router.getAmountsOut(
-            amount_of_token1_received_on_dex_to_buy, 
-            [token1.address, token0.address]
-        )
-    const amount_of_token0_received_on_dex_to_sell = 
-        trade2[1];
-
-    const estimated_token0_amount_to_spend_on_dex_to_buy = 
-        Number(ethers.utils.formatUnits(
-            amount_of_token0_spent_on_dex_to_buy, 
-            "ether"
-            )
-        )
-    const estimated_token0_amount_to_receive_from_dex_to_sell = 
-        Number(ethers.utils.formatUnits(
-            amount_of_token0_received_on_dex_to_sell, 
-            "ether"
-            )
-        )
-    
-    console.log(`estimateMainTokenProfit => token 0 received after selling bought ${estimated_token0_amount_to_receive_from_dex_to_sell})}`)
-
-    return estimated_token0_amount_to_receive_from_dex_to_sell - estimated_token0_amount_to_spend_on_dex_to_buy
 }
 
 const getTokenIndexInsidePair = async (
@@ -407,29 +211,6 @@ const getTokenIndexInsidePair = async (
       return 1
 
     throw `cannot determine token ${token_address} possition`;   
-}
-
-const calculatePriceDifferencePercentage = async(
-    dex_1_pair_contract, 
-    dex_2_pair_contract, 
-) => {
-    // on chain price with decimals
-    const dex_1_on_chain_price = 
-        await calculatePrice(dex_1_pair_contract)
-    const dex_2_on_chain_price = 
-        await calculatePrice(dex_2_pair_contract)
-
-    // rounded price
-    const dex_1_price = 
-        Number(dex_1_on_chain_price).toFixed(0)
-    const dex_2_price = 
-        Number(dex_2_on_chain_price).toFixed(0)
-
-    // price difference as a percentage
-    const price_difference_percentage = 
-        (((dex_1_price - dex_2_price) / dex_2_price) * 100).toFixed(2)
-
-    return price_difference_percentage;
 }
 
 const calculateMainTokenPriceDifferencePercentage = async(
@@ -496,16 +277,11 @@ module.exports = {
     getPairAddress,
     getPairContract,
     getReserves,
-    estimateMainTokenProfit,
-    pickArbitrageAmount,
     getTokenIndexInsidePair,
-    calculatePriceDifferencePercentage,
     determinePotentialTradeOrder,
-    calculatePrice,
     calculatePriceForTokens,
     calculatePriceForTokenIndexes,
     calculateMainTokenPriceDifferencePercentage,
-    pickOptimalArbitrageAmmount,
     getDefaultArbitrageAmount,
     determineProfitForInterimTokenAmount
 }
