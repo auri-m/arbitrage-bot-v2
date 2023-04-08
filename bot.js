@@ -168,7 +168,8 @@ const main = async () => {
         token0,
         token1,
         account,
-        contract
+        contract,
+        provider
       )
 
       console.log("Waiting for swap event...")
@@ -198,7 +199,8 @@ const main = async () => {
         token0,
         token1,
         account,
-        contract
+        contract,
+        provider
       )
 
       console.log("Waiting for swap event...")
@@ -223,7 +225,8 @@ const checkArbitrage = async (
   token0,
   token1,
   account,
-  contract
+  contract,
+  provider
 ) => {
 
   const price_difference_percentage =
@@ -344,6 +347,7 @@ const checkArbitrage = async (
     await attemptArbitrage(
       account,
       contract,
+      provider,
       potential_trade_order.DexToBuy.Router.address,
       potential_trade_order.DexToSell.Router.address,
       token0,
@@ -564,6 +568,7 @@ const determineDynamicProfit = async (
 const attemptArbitrage = async (
   account,
   contract,
+  provider,
   router_address_to_buy,
   router_address_to_sell,
   main_token,
@@ -578,6 +583,9 @@ const attemptArbitrage = async (
     await main_token.contract.balanceOf(contract.address)
   const account_balance_before_trade_in_wei =
     await account.getBalance()
+  
+  const fee_data = 
+    await provider.getFeeData();
 
   const transaction =
     await contract

@@ -8,6 +8,10 @@ module.exports = {
 			forking: {
 				url: process.env.HARDHAT_FORKING_ENDPOINT
 			}
+		},
+		polygon: {
+			url: process.env.HARDHAT_POLYGON,
+			accounts: [process.env.PRIVATE_KEY],
 		}
   }
 };

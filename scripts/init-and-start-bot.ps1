@@ -18,4 +18,4 @@ write-host $currentFolder
 
 write-host `n
 
-node watcher.js
+node bot.js

@@ -10,7 +10,7 @@ const IERC20 =
     require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
 const contract_address = "0x3c2866813A5aFac211d127B2629820EC90aA79C8";
-const token_address = "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
+const token_address = "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063"
 
 const main = async () => {
 
@@ -29,9 +29,32 @@ const main = async () => {
             signer
         );
 
+
     await logOwnerAndVersion(contract);
 
-    // await checkContractTokenBalance(contract_address, token_address, provider);
+    await checkContractTokenBalance(
+        contract_address, 
+        token_address, 
+        provider
+    );
+
+    await checkNativeCoinBalance(
+        contract_address, 
+        provider
+    );
+
+    // await withdrawNativeCoinsFromContract(
+    //     contract, 
+    //     signer,
+    //     provider
+    // );
+
+    // await withdrawTokensFromContract(
+    //     contract, 
+    //     token_address, 
+    //     signer,
+    //     provider
+    // )   
 }
 
 const getContractAbi = () => {
@@ -44,13 +67,6 @@ const getContractAbi = () => {
     return json.abi;
 }
 
-const logCode = async (provider) => {
-    const contract_code = 
-        await provider.getCode(contract_address);
-    console.log("Contract code");
-    console.log(contract_code);
-}
-
 const logOwnerAndVersion = async (contract) => {
     const owner = 
         await contract.getOwner();
@@ -59,6 +75,44 @@ const logOwnerAndVersion = async (contract) => {
 
     console.log(`\ncontract owner => ${owner}`);
     console.log(`contract version => ${version}`);
+}
+
+const checkNativeCoinBalance = async (address, provider) => {
+
+    const balance = 
+        await provider.getBalance(address);
+    const formated_balance = 
+        ethers.utils.formatUnits(balance, "ether")
+
+    console.log(`\nnative coin balance => ${formated_balance}`)
+}
+
+const withdrawNativeCoinsFromContract = async (
+    contract, 
+    owner, 
+    provider
+) => {
+
+    const fee_data = 
+        await provider.getFeeData();
+
+    await contract
+        .connect(owner)
+        .withdraw({ gasPrice: fee_data.gasPrice });
+}
+
+const withdrawTokensFromContract = async (
+    contract, 
+    token_address, 
+    owner, 
+    provider
+) => {
+    const fee_data = 
+        await provider.getFeeData();
+
+    await contract
+        .connect(owner)
+        .withdrawToken(token_address, { gasPrice: fee_data.gasPrice });
 }
 
 const checkContractTokenBalance = async (
@@ -77,7 +131,7 @@ const checkContractTokenBalance = async (
     const balance_in_wei = 
         await token_contract.balanceOf(contract_address)
     
-    console.log(`Balance => ${ethers.utils.formatUnits(balance_in_wei, "ether")}`)
+    console.log(`\ntoken balance => ${ethers.utils.formatUnits(balance_in_wei, "ether")}`)
 }
 
 main()
