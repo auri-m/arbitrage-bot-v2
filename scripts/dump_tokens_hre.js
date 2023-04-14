@@ -20,8 +20,7 @@ const {
 
 const {
     getPairContract,
-    calculatePriceForTokens,
-    calculatePriceForTokenIndexes
+    calculatePriceForTokens
 } = require('../helpers/token-service')
 
 const default_decimals = 18;
@@ -49,17 +48,27 @@ const main = async () => {
     const other_dex = dex_1;
     const other_dex_pair_contract = dex_1_pair_contract;
 
+    // wmatic holder
+    // "0x0AFF6665bB45bF349489B20E225A6c5D78E2280F"
+
+    // tether holder
+    // "0xee5B5B923fFcE93A870B3104b7CA09c3db80047A"
+
     const token_to_swap = interim_token;
     const token_to_receive = main_token;
-    const wallet_to_impersonate = "0x509db14ae32a43b98c6427bea50d0915c38c0196";
-    const token_amount_to_swap = "10000";
+    const wallet_to_impersonate = "0x0AFF6665bB45bF349489B20E225A6c5D78E2280F";
+    const token_amount_to_swap = "100";
 
-
-    const prices_before = await calculatePriceForTokens(dex_to_swap_pair_contract, main_token.address, interim_token.address)
-    const prices_another = await calculatePriceForTokens(other_dex_pair_contract, main_token.address, interim_token.address)
-
-    const prices_before_index = await calculatePriceForTokenIndexes(dex_to_swap_pair_contract, 1, 0)
-    const prices_another_index = await calculatePriceForTokenIndexes(other_dex_pair_contract, 1, 0)
+    const prices_before = await calculatePriceForTokens(
+        dex_to_swap_pair_contract, 
+        main_token, 
+        interim_token
+    )
+    const prices_another = await calculatePriceForTokens(
+        other_dex_pair_contract, 
+        main_token, 
+        interim_token
+    )
 
     console.log(`\nswaping ${token_amount_to_swap} tokens`);
 
@@ -72,34 +81,23 @@ const main = async () => {
         token_amount_to_swap
     )
 
-
-
-    const prices_after = await calculatePriceForTokens(dex_to_swap_pair_contract, main_token.address, interim_token.address)
-    const prices_after_index = await calculatePriceForTokenIndexes(dex_to_swap_pair_contract, 1, 0)
+    const prices_after = await calculatePriceForTokens(
+        dex_to_swap_pair_contract, 
+        main_token, 
+        interim_token
+    )
 
     // resulting price difference
     console.log("\nPrice calculation")
     console.table({
-        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(prices_before.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
-        'Main Token Price After': `1 ${main_token.symbol} = ${Number(prices_after.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
-        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(prices_another.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
+        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(prices_before.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
+        'Main Token Price After': `1 ${main_token.symbol} = ${Number(prices_after.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
+        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(prices_another.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
         ' ': {},
         'Interim Token Price Before': `1 ${interim_token.symbol} = ${Number(prices_before.one_interim_token_cost_in_main)} ${main_token.symbol}`,
         'Interim Token Price After': `1 ${interim_token.symbol} = ${Number(prices_after.one_interim_token_cost_in_main)} ${main_token.symbol}`,
         'Interim Token Price On Other Dex': `1 ${interim_token.symbol} = ${Number(prices_another.one_interim_token_cost_in_main)} ${main_token.symbol}`,
     })
-
-    console.log("\nPrice calculation by indexes")
-    console.table({
-        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(prices_before_index.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
-        'Main Token Price After': `1 ${main_token.symbol} = ${Number(prices_after_index.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
-        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(prices_another_index.one_main_token_cost_in_interim).toFixed()} ${interim_token.symbol}`,
-        ' ': {},
-        'Interim Token Price Before': `1 ${interim_token.symbol} = ${Number(prices_before_index.one_interim_token_cost_in_main)} ${main_token.symbol}`,
-        'Interim Token Price After': `1 ${interim_token.symbol} = ${Number(prices_after_index.one_interim_token_cost_in_main)} ${main_token.symbol}`,
-        'Interim Token Price On Other Dex': `1 ${interim_token.symbol} = ${Number(prices_another_index.one_interim_token_cost_in_main)} ${main_token.symbol}`,
-    })
-
 }
 
 const init = async () => {
@@ -140,30 +138,6 @@ const init = async () => {
             provider
         );
 
-    // token0.index_Inside_Dex1_Pair =
-    //     await getTokenIndexInsidePair(
-    //         dex_1_pair_contract,
-    //         token0.address
-    //     );
-
-    // token1.index_Inside_Dex1_Pair =
-    //     await getTokenIndexInsidePair(
-    //         dex_1_pair_contract,
-    //         token1.address
-    //     );
-
-    // token0.index_Inside_Dex2_Pair =
-    //     await getTokenIndexInsidePair(
-    //         dex_2_pair_contract,
-    //         token0.address
-    //     );
-
-    // token1.index_Inside_Dex2_Pair =
-    //     await getTokenIndexInsidePair(
-    //         dex_2_pair_contract,
-    //         token1.address
-    //     );
-
     console.log("dex 2 pair contract - done");
 
     return {
@@ -185,8 +159,8 @@ const swap = async (
 ) => {
 
     console.table({
-        'Token to swap': token_to_swap.symbol,
-        'Token to receive': token_to_receive.symbol,
+        'Token to swap/dump/interim token': token_to_swap.symbol,
+        'Token to receive/main token': token_to_receive.symbol,
         'Swapping on': dex.Name,
     })
 
@@ -194,8 +168,10 @@ const swap = async (
     const token_amount_to_swap_in_wei =
         ethers.utils.parseUnits(
             token_amount_to_swap,
-            default_decimals
+            token_to_swap.decimals
         );
+
+    console.log(`tokens to swap in wei => ${token_amount_to_swap_in_wei}`)
 
     // 10 minutes
     const deadline =

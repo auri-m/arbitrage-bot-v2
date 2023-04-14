@@ -52,6 +52,9 @@ const {
 const _min_price_difference_percentage =
   config.Constraints.MinPriceDifferencePercentage;
 
+const MIN_MAIN_TOKEN_PROFIT = 
+  config.Constraints.MinMainTokenProfit;
+
 let isExecuting = false
 
 const main = async () => {
@@ -160,19 +163,25 @@ const main = async () => {
       logInfo(swap_event)
       console.table(swap_event)
 
-      await checkArbitrage(
-        dex_1,
-        dex_2,
-        dex_1_pair_contract,
-        dex_2_pair_contract,
-        token0,
-        token1,
-        account,
-        contract,
-        provider
-      )
+      try{
+        await checkArbitrage(
+          dex_1,
+          dex_2,
+          dex_1_pair_contract,
+          dex_2_pair_contract,
+          token0,
+          token1,
+          account,
+          contract,
+          provider
+        )
+      }catch(error){
+        console.log("\nSWAP HANDLER ERROR...\n")
+        console.log(error)
+        logError(error)
+      }
 
-      console.log("Waiting for swap event...")
+      console.log("\nWaiting for swap event...")
 
       isExecuting = false
       
@@ -191,19 +200,25 @@ const main = async () => {
       logInfo(swap_event)
       console.table(swap_event)
 
-      await checkArbitrage(
-        dex_1,
-        dex_2,
-        dex_1_pair_contract,
-        dex_2_pair_contract,
-        token0,
-        token1,
-        account,
-        contract,
-        provider
-      )
+      try{
+        await checkArbitrage(
+          dex_1,
+          dex_2,
+          dex_1_pair_contract,
+          dex_2_pair_contract,
+          token0,
+          token1,
+          account,
+          contract,
+          provider
+        )
+      }catch(error){
+        console.log("\nSWAP HANDLER ERROR...\n")
+        console.log(error)
+        logError(error)
+      }
 
-      console.log("Waiting for swap event...")
+      console.log("\nWaiting for swap event...")
 
       isExecuting = false
 
@@ -233,8 +248,8 @@ const checkArbitrage = async (
     await calculateMainTokenPriceDifferencePercentage(
       dex_1_PairContract,
       dex_2_PairContract,
-      token0.address,
-      token1.address
+      token0,
+      token1
     );
 
   const log_entry = {
@@ -264,7 +279,6 @@ const checkArbitrage = async (
     logInfo(entry)
 
     console.log(`No Arbitrage (No Trade Path) Currently Available`)
-    console.log(`Price Difference Only ${price_difference_percentage}\n`)
     console.log(`-----------------------------------------\n`)
     isExecuting = false
 
@@ -279,18 +293,15 @@ const checkArbitrage = async (
   }
   logInfo(entry)
 
-  console.log(`\nDEX to buy => ${potential_trade_order.DexToBuy.Name}`)
-  console.log(`DEX to sell => ${potential_trade_order.DexToSell.Name}`)
-
-
-  const estimated_gas_cost =
-    getEstimatedGasCost();
+  console.log(`\nDEX to buy => \t${potential_trade_order.DexToBuy.Name}`)
+  console.log(`DEX to sell => \t${potential_trade_order.DexToSell.Name}`)
 
   const {
-    estimated_profit,
-    main_token_amount_required_to_buy,
+    estimated_profit_after_final_sale,
+    main_token_amount_required_to_buy_interim_tokens,
     interim_token_arbitrage_amount,
-    last_ratio,
+    token_ratio_used,
+    message
   } = await determineDynamicProfit(
     potential_trade_order.DexToBuy,
     potential_trade_order.DexToSell,
@@ -305,27 +316,48 @@ const checkArbitrage = async (
   const entry1 = {
     type: "arbitrage",
     data_1: "estimated profit",
-    interim_token_arbitrage_amount: ethers.utils.formatUnits(interim_token_arbitrage_amount, "ether"),
-    estimated_profit: ethers.utils.formatUnits(estimated_profit.toString(), "ether"),
-    last_ratio: last_ratio
+    interim_token_arbitrage_amount: ethers.utils.formatUnits(interim_token_arbitrage_amount, token1.decimals),
+    estimated_profit_after_final_sale: ethers.utils.formatUnits(estimated_profit_after_final_sale.toString(), token0.decimals),
+    token_ratio_used: token_ratio_used,
+    message: message
   }
   logInfo(entry1)
 
   console.log(`\nEstimated profit from arbitraging:`);
-  console.log(`\tBuy ${ethers.utils.formatUnits(interim_token_arbitrage_amount, "ether")} of ${token1.name} `)
-  console.log(`\tProfit after selling => ${ethers.utils.formatUnits(estimated_profit.toString(), "ether")} ${token0.name}`)
-  console.log(`\tLast profitable ratio ${last_ratio}`)
+  console.log(`   Buy ${ethers.utils.formatUnits(interim_token_arbitrage_amount, token1.decimals)} of ${token1.symbol} `)
+  console.log(`   Profit after selling: ${ethers.utils.formatUnits(estimated_profit_after_final_sale.toString(), token0.decimals)} ${token0.symbol}`)
+  console.log(`   Last profitable ratio: ${token_ratio_used}`)
+  console.log(`   Message: ${message}\n`)
 
-  if (estimated_profit < 0) {
+  // no profit
+  if (estimated_profit_after_final_sale < 0) {
 
     const entry = {
       type: "arbitrage",
       data_1: "no arbitrage (no profit)",
-      data_2: estimated_profit
+      data_2: estimated_profit_after_final_sale
     }
     logInfo(entry)
 
     console.log(`No Arbitrage (No Profit) Currently Available\n`)
+    console.log(`-----------------------------------------\n`)
+    isExecuting = false
+
+    return;
+  }
+
+  // not enough profit
+  if (estimated_profit_after_final_sale < ethers.utils.parseUnits(MIN_MAIN_TOKEN_PROFIT, token0.decimals)) {
+
+    const entry = {
+      type: "arbitrage",
+      data_1: "no arbitrage (not enough profit)",
+      data_2: estimated_profit_after_final_sale
+    }
+    logInfo(entry)
+
+    console.log(`No Arbitrage (Not Enough Profit) Currently Available`)
+    console.log(`Min Profit is at least ${MIN_MAIN_TOKEN_PROFIT} ${token0.symbol}\n`)
     console.log(`-----------------------------------------\n`)
     isExecuting = false
 
@@ -352,7 +384,7 @@ const checkArbitrage = async (
       potential_trade_order.DexToSell.Router.address,
       token0,
       token1,
-      main_token_amount_required_to_buy.toString()
+      main_token_amount_required_to_buy_interim_tokens.toString()
     )
 
   } else {
@@ -379,18 +411,36 @@ const determineDynamicProfit = async (
   token1
 ) => {
 
-  console.log(`\nDetermining Dynamic Profitability...\n`)
+  // local state
+  const state = {
+    estimated_profit_after_final_sale: -1,
+    main_token_amount_required_to_buy_interim_tokens: -1,
+    interim_token_arbitrage_amount: -1,
+    token_ratio_used: -1,
+    message: ""
+  };
+
+  const update_local_state = (
+    profit, 
+    main_token_amount, 
+    interim_token_amount, 
+    ratio,
+    message
+  ) => {
+    state.estimated_profit_after_final_sale = profit;
+    state.main_token_amount_required_to_buy_interim_tokens = main_token_amount;
+    state.interim_token_arbitrage_amount = interim_token_amount;
+    state.token_ratio_used = ratio;
+    state.message = message;
+  }
+
+  const set_local_state_message = 
+    (message) => 
+      state.message = message;
 
   let token1_reserves_on_dex_to_buy = null;
   let token1_reserves_on_dex_to_sell = null;
   let token1_amount_for_arbitrage = null;
-
-  const last_profitable_amount = {
-    estimated_profit: -1,
-    main_token_amount_required_to_buy: 0,
-    interim_token_arbitrage_amount: 0,
-    last_ratio: -1
-  };
 
   // Get interim token reserves on both DEXes
   if (dex_to_buy.Name == dex_1.Name) {
@@ -424,20 +474,21 @@ const determineDynamicProfit = async (
     throw "cannot determine DEXes to get token reserves";
   }
 
-  console.log(`\nInterim token reserves on DEX TO BUY => ${token1_reserves_on_dex_to_buy}`)
-  console.log(`Interim token reserves on DEX TO SELL => ${token1_reserves_on_dex_to_sell}`)
+  console.log(`\nInterim token reserves on DEX TO BUY => \t${token1_reserves_on_dex_to_buy}`)
+  console.log(`Interim token reserves on DEX TO SELL => \t${token1_reserves_on_dex_to_sell}`)
 
   // check default amount first
   const default_interim_token_amount =
     await getDefaultArbitrageAmount(
       dex_to_buy,
-      token0.address,
-      token1.address
+      token0,
+      token1
     )
 
   // something failed
   if (!default_interim_token_amount) {
-    return last_profitable_amount;
+    set_local_state_message("Default arbitrage amount determination failed")
+    return state;
   }
 
   const default_amount_profit =
@@ -451,24 +502,26 @@ const determineDynamicProfit = async (
 
   // something failed during default amount check
   if (!default_amount_profit.success) {
-    return last_profitable_amount;
+    set_local_state_message("Default arbitrage amount profit determination failed")
+    return state;
   }
 
   // if the default amount is not profitable, it's not worth continuing
   if (!default_amount_profit.profitable) {
-
-    last_profitable_amount.estimated_profit = default_amount_profit.profit
-    last_profitable_amount.interim_token_arbitrage_amount = default_amount_profit.interim_token_amount_to_verify
-    return last_profitable_amount;
+    set_local_state_message("Default arbitrage amount not profitable")
+    return state;
   }
 
   // if we reached this part
   // it means at least the default amount was profitable 
   // and we should save it
-  last_profitable_amount.estimated_profit = default_amount_profit.profit
-  last_profitable_amount.main_token_amount_required_to_buy = default_amount_profit.main_token_amount_required_to_buy
-  last_profitable_amount.interim_token_arbitrage_amount = default_amount_profit.interim_token_amount_to_verify
-  last_profitable_amount.last_ratio = 0;
+  update_local_state(
+    default_amount_profit.profit, 
+    default_amount_profit.main_token_amount_required_to_buy, 
+    default_amount_profit.interim_token_amount_to_verify, 
+    0,
+    "Default arbitrage amount is profitable"
+  )
 
   // from here 
   //    => 
@@ -493,19 +546,23 @@ const determineDynamicProfit = async (
 
 
   if (!mid_reserve_profit.success) {
-    return last_profitable_amount
+    set_local_state_message("Mid range profit determination failed")
+    return state;
   }
 
   if (mid_reserve_profit.profitable) {
-    // check higher ranges
 
     // if we reached this part
     // it means the mid range was profitable and we should save it 
-    last_profitable_amount.estimated_profit = mid_reserve_profit.profit
-    last_profitable_amount.main_token_amount_required_to_buy = mid_reserve_profit.main_token_amount_required_to_buy
-    last_profitable_amount.interim_token_arbitrage_amount = mid_reserve_profit.interim_token_amount_to_verify
-    last_profitable_amount.last_ratio = mid_ratio;
+    update_local_state(
+      mid_reserve_profit.profit, 
+      mid_reserve_profit.main_token_amount_required_to_buy, 
+      mid_reserve_profit.interim_token_amount_to_verify, 
+      mid_ratio,
+      "Mid range is profitable"
+    )
 
+    // check higher ranges
     for (let i = 0; i < higher_ratios.length; i++) {
 
       const reserve =
@@ -524,10 +581,13 @@ const determineDynamicProfit = async (
         break;
       } else {
         // range is profitable
-        last_profitable_amount.estimated_profit = profit.profit
-        last_profitable_amount.main_token_amount_required_to_buy = profit.main_token_amount_required_to_buy
-        last_profitable_amount.interim_token_arbitrage_amount = profit.interim_token_amount_to_verify
-        last_profitable_amount.last_ratio = higher_ratios[i];
+        update_local_state(
+          profit.profit, 
+          profit.main_token_amount_required_to_buy, 
+          profit.interim_token_amount_to_verify, 
+          higher_ratios[i],
+          "High range is profitable"
+        )
       }
 
     }
@@ -551,17 +611,20 @@ const determineDynamicProfit = async (
       if (profit.profitable) {
         // if the range is profitable, we break imediately 
         // because other ranges go lower
-        last_profitable_amount.estimated_profit = profit.profit
-        last_profitable_amount.main_token_amount_required_to_buy = profit.main_token_amount_required_to_buy
-        last_profitable_amount.interim_token_arbitrage_amount = profit.interim_token_amount_to_verify
-        last_profitable_amount.last_ratio = lower_rations[i];
+        update_local_state(
+          profit.profit, 
+          profit.main_token_amount_required_to_buy, 
+          profit.interim_token_amount_to_verify, 
+          lower_rations[i],
+          "Lower range is profitable"
+        )
 
         break;
       }
     }
   }
 
-  return last_profitable_amount;
+  return state;
 
 }
 
@@ -576,11 +639,8 @@ const attemptArbitrage = async (
   loan_amount
 ) => {
 
-  console.log("Attempting Trade...\n")
+  console.log("Attempting Trade...")
 
-  // balances before trade
-  const contract_main_token_balance_before_trade_in_wei =
-    await main_token.contract.balanceOf(contract.address)
   const account_balance_before_trade_in_wei =
     await account.getBalance()
   
@@ -595,34 +655,44 @@ const attemptArbitrage = async (
         router_address_to_sell,
         main_token.address,
         interim_token.address,
-        loan_amount
+        loan_amount,
+        { 
+          gasPrice: fee_data.gasPrice 
+        }
       )
 
-  await transaction.wait()
+  const result = 
+    await transaction.wait()
+  
+  const event = result.events
+    .find(event => event.event === 'ProfitableTransactionOccurred');
 
-  console.log("Trade Complete\n")
+  const [
+    mainTokenBalanceBefore, 
+    mainTokenBalanceAfter
+  ] = event.args;
 
-  // balances after trade
-  const contract_main_token_balance_after_trade_in_wei =
-    await main_token.contract.balanceOf(contract.address)
-  const account_balance_after_trade_in_wei =
-    await account.getBalance()
+  console.log("Trade Complete")
+  console.log(`   Transaction log => token balance BEFORE: ${ethers.utils.formatUnits(mainTokenBalanceBefore, main_token.decimals)}`)
+  console.log(`   Transaction log => token balance AFTER: ${ethers.utils.formatUnits(mainTokenBalanceAfter, main_token.decimals)}`)
 
   // main token stats
   const contract_main_token_balance_before_trade =
     ethers.utils.formatUnits(
-      contract_main_token_balance_before_trade_in_wei,
-      "ether"
+      mainTokenBalanceBefore,
+      main_token.decimals
     );
   const contract_main_token_balance_after_trade =
     ethers.utils.formatUnits(
-      contract_main_token_balance_after_trade_in_wei,
-      "ether"
+      mainTokenBalanceAfter,
+      main_token.decimals
     );
   const contract_main_token_difference =
     Number(contract_main_token_balance_after_trade) - Number(contract_main_token_balance_before_trade)
 
-  // native coint stats
+  // native coin stats
+  const account_balance_after_trade_in_wei =
+    await account.getBalance()
   const account_balance_before_trade =
     ethers.utils.formatUnits(
       account_balance_before_trade_in_wei,
@@ -649,27 +719,15 @@ const attemptArbitrage = async (
   logInfo(trade_stats)
 
   const log_data = {
-    "Native Coin Balance Before": account_balance_before_trade,
-    "Native Coin Balance After": account_balance_after_trade,
+    "Account Native Coin Balance Before": account_balance_before_trade,
+    "Account Native Coin Balance After": account_balance_after_trade,
     "Transaction Cost": transaction_cost,
     "-": {},
-    "Main Token Balance Before": contract_main_token_balance_before_trade,
-    "Main Token Balance After": contract_main_token_balance_after_trade,
-    "Main Token Gained/Lost": contract_main_token_difference
+    "Contract Main Token Balance Before": contract_main_token_balance_before_trade,
+    "Contract Main Token Balance After": contract_main_token_balance_after_trade,
+    "Contract Main Token Gained/Lost": contract_main_token_difference
   }
   console.table(log_data)
-}
-
-
-const getEstimatedGasCost = () => {
-  const ignoreGas = config.Constraints.IgnoreGas;
-  if (ignoreGas)
-    return 0
-
-  const gasLimit = config.Constraints.GasLimit;
-  const gasPrice = config.Constraints.GasPrice;
-
-  return gasLimit * gasPrice
 }
 
 const logCurrentConfig = () => {
@@ -697,7 +755,7 @@ const logCurrentConfig = () => {
 }
 
 main().catch((error) => {
-  console.log("Main error caught")
+  console.log("\nMAIN LOOP ERROR...\n")
   console.log(error)
   logError(error);
 });

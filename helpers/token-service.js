@@ -51,25 +51,27 @@ const getReserves = async (pairContract) => {
 
 const calculatePriceForTokens = async (
     pair_contract, 
-    main_token_address, 
-    interim_token_address
+    main_token, 
+    interim_token
 ) => {
 
     const main_token_index_inside_pair = 
         await getTokenIndexInsidePair(
             pair_contract, 
-            main_token_address
+            main_token.address
         )
     const interim_token_index_inside_pair = 
         await getTokenIndexInsidePair(
             pair_contract, 
-            interim_token_address
+            interim_token.address
         )
     const result = 
         await calculatePriceForTokenIndexes(
             pair_contract, 
             main_token_index_inside_pair, 
-            interim_token_index_inside_pair
+            main_token.decimals,
+            interim_token_index_inside_pair,
+            interim_token.decimals
         )
 
     return result;
@@ -78,7 +80,9 @@ const calculatePriceForTokens = async (
 const calculatePriceForTokenIndexes = async (
     pair_contract, 
     main_token_index_inside_pair, 
-    interim_token_index_inside_pair
+    main_token_decimals,
+    interim_token_index_inside_pair,
+    interim_token_decimals
 ) => {
 
     // prerequisites
@@ -86,11 +90,24 @@ const calculatePriceForTokenIndexes = async (
         await pair_contract.getReserves();
     
     // reserves 
-    const main_token_reserves = 
+    const main_token_reserves_in_wei = 
         reserves[main_token_index_inside_pair];
-    const interim_token_reserves = 
+    const interim_token_reserves_in_wei = 
         reserves[interim_token_index_inside_pair];
 
+    // convert
+    const main_token_reserves = 
+        ethers.utils.formatUnits(
+            main_token_reserves_in_wei,
+            main_token_decimals
+        )
+
+    const interim_token_reserves = 
+        ethers.utils.formatUnits(
+            interim_token_reserves_in_wei,
+            interim_token_decimals
+        )
+   
     // prices
     const one_main_token_costs_this_many_interim_tokens = 
         big(interim_token_reserves)
@@ -110,14 +127,14 @@ const calculatePriceForTokenIndexes = async (
 
 const getDefaultArbitrageAmount = async (    
     dex_to_buy,
-    main_token_address, 
-    interim_token_address
+    main_token,
+    interim_token
 ) => {
 
     try {
         const min_amounts = await dex_to_buy.Router.getAmountsOut(
-            ethers.utils.parseUnits("1", "ether"),
-            [main_token_address, interim_token_address]
+            ethers.utils.parseUnits("1", main_token.decimals),
+            [main_token.address, interim_token.address]
         )
     
         return min_amounts[1]
@@ -216,21 +233,21 @@ const getTokenIndexInsidePair = async (
 const calculateMainTokenPriceDifferencePercentage = async(
     dex_1_pair_contract, 
     dex_2_pair_contract, 
-    main_token_addres,
-    interim_token_addres
+    main_token,
+    interim_token
 ) => {
     // on chain price with decimals
     const dex_1_on_chain_prices = 
         await calculatePriceForTokens(
             dex_1_pair_contract, 
-            main_token_addres, 
-            interim_token_addres
+            main_token, 
+            interim_token
         )
     const dex_2_on_chain_prices = 
         await calculatePriceForTokens(
             dex_2_pair_contract, 
-            main_token_addres, 
-            interim_token_addres
+            main_token, 
+            interim_token
         )
 
     // rounded price
@@ -239,6 +256,9 @@ const calculateMainTokenPriceDifferencePercentage = async(
     const main_token_dex_2_price = 
         Number(dex_2_on_chain_prices.one_main_token_cost_in_interim)
 
+    console.log(`\nDEX 1 => 1 ${main_token.symbol} costs ${main_token_dex_1_price} ${interim_token.symbol}`)
+    console.log(`DEX 2 => 1 ${main_token.symbol} costs ${main_token_dex_2_price} ${interim_token.symbol}`)
+    
     // price difference as a percentage
     const main_token_price_difference_percentage = 
         (((main_token_dex_1_price - main_token_dex_2_price) / main_token_dex_2_price) * 100).toFixed(2)

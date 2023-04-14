@@ -1,8 +1,6 @@
-- refactoringas
-- reikia apvalyti configa del visu gass price ir t.t.
-- ismes lauk ExecuteTrades flaga. Jei contracto addressas ne null, undefined, string.empty => executinam trade'us
-- jei labai greitai paleidziam botus => alchemy meta klaida => reikia pagalvot
 
 
-
-
+-deklaracija
+-laura
+-new contract with floashloan and swap => prod test 
+-infura vs alchemy

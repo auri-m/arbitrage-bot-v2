@@ -30,6 +30,11 @@ contract BalancerV2 is IFlashLoanRecipient {
     address public immutable _vault;
     string private _version = "";
 
+    event ProfitableTransactionOccurred(
+        uint256 mainTokenBalanceBefore, 
+        uint256 mainTokenBalanceAfter
+    );
+
     modifier onlyOwner() 
     {
         require(
@@ -58,17 +63,17 @@ contract BalancerV2 is IFlashLoanRecipient {
         address mainTokenAddress,
         address interimTokenAddress,
         uint256 loanAmount
-    ) external {
+    ) external
+    {
+        //  stats before transaction
+        uint256 mainTokenBalanceBeforeTransaction = 
+            IERC20(mainTokenAddress).balanceOf(address(this));
 
         // encode input data for later use in the callback
-        uint256 mainTokenBalanceBeforeTrade = IERC20(mainTokenAddress).balanceOf(address(this));
-
         bytes memory userData = abi.encode(
             dexToBuyRouterAddress,
             dexToSellRouterAddress,
-            mainTokenAddress,
-            interimTokenAddress,
-            mainTokenBalanceBeforeTrade
+            interimTokenAddress
         );
 
         // move stuff into arrays to match the balancer interface
@@ -84,6 +89,22 @@ contract BalancerV2 is IFlashLoanRecipient {
             tokens,
             amounts,
             userData
+        );
+
+        // stats after transaction
+        uint256 mainTokenBalanceAfterTransaction = 
+            IERC20(mainTokenAddress).balanceOf(address(this));
+
+        // fail the transaction if it's not profitable
+        require(
+            mainTokenBalanceAfterTransaction > mainTokenBalanceBeforeTransaction,
+            "Trade was not profitable."
+        );
+        
+        // capture the before/after state of 
+        emit ProfitableTransactionOccurred(
+            mainTokenBalanceBeforeTransaction, 
+            mainTokenBalanceAfterTransaction
         );
     }
 
@@ -104,19 +125,17 @@ contract BalancerV2 is IFlashLoanRecipient {
         (
             address dexToBuyRouterAddress,
             address dexToSellRouterAddress,
-            address mainTokenAddress,
-            address interimTokenAddress,
-            uint256 mainTokenBalanceBeforeTrade
-        ) = abi.decode(userData, (address, address, address, address, uint256));
+            address interimTokenAddress
+        ) = abi.decode(userData, (address, address, address));
 
-        IERC20 mainTokenBorrowed = tokens[0];
-        uint256 amountBorrowed = amounts[0];      
-
-        // check if we actually got the loan
-        uint256 mainTokenBalanceAfterLoan = mainTokenBorrowed.balanceOf(address(this));
+        // helper structures
+        IERC20 mainToken = tokens[0];
+        address mainTokenAddress = address(tokens[0]);
+        uint256 amountBorrowed = amounts[0];    
+        IERC20 interimToken = IERC20(interimTokenAddress);
 
         require(
-            amountBorrowed + mainTokenBalanceBeforeTrade == mainTokenBalanceAfterLoan,
+            amountBorrowed > 0,
             "contract did not get the loan!"
         );
 
@@ -131,7 +150,7 @@ contract BalancerV2 is IFlashLoanRecipient {
 
         // allow the buy router to use our main tokens 
         require(
-            IERC20(buyPath[0]).approve(dexToBuyRouterAddress, amountBorrowed),
+            mainToken.approve(dexToBuyRouterAddress, amountBorrowed),
             "Dex to buy approval failed."
         );
 
@@ -149,11 +168,11 @@ contract BalancerV2 is IFlashLoanRecipient {
         sellPath[0] = interimTokenAddress;
         sellPath[1] = mainTokenAddress;
 
-        uint256 interimTokenAmountAvailableToSell = IERC20(interimTokenAddress).balanceOf(address(this));
+        uint256 interimTokenAmountAvailableToSell = interimToken.balanceOf(address(this));
 
         // allow the sell router to use our interim tokens 
         require(
-            IERC20(sellPath[0]).approve(dexToSellRouterAddress, interimTokenAmountAvailableToSell),
+            interimToken.approve(dexToSellRouterAddress, interimTokenAmountAvailableToSell),
             "Dex to sell approval failed."
         );
 
@@ -166,15 +185,7 @@ contract BalancerV2 is IFlashLoanRecipient {
         );
  
         // return the loan 
-        mainTokenBorrowed.transfer(_vault, amountBorrowed);
-
-        // check if we made any profit
-        uint256 finalMainTokenBalance = mainTokenBorrowed.balanceOf(address(this));
-
-        require(
-            finalMainTokenBalance > mainTokenBalanceBeforeTrade,
-            "Trade was not profitable."
-        );
+        mainToken.transfer(_vault, amountBorrowed);
     }
 
     function getBalance() public view returns (uint) 

@@ -30,7 +30,7 @@ try
     })
 
 } catch(error) {
-    console.log("Host process error caught")
+    console.log("\nHOST ERROR...\n")
     console.log(error)
     logError(error);
 }
