@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 const balancer_vault_on_polygon = "0xBA12222222228d8Ba445958a75a0704d566BF2C8";
-const version = "1.03 (alpha)";
+const version = "1.01 (test alpha)";
 
 const main = async () => {
 
@@ -9,7 +9,7 @@ const main = async () => {
     console.log(`Preparing deployment...\n`)
 
     const contract_factory =
-      await hre.ethers.getContractFactory("BalancerV2")
+      await hre.ethers.getContractFactory("TestSwap")
 
     const contract_promise =
       await contract_factory.deploy(
