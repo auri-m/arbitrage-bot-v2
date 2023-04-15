@@ -1,6 +1,6 @@
 require('./helpers/globals')
 require("dotenv").config();
-require('./helpers/host-process')
+// require('./helpers/host-process')
 
 const big =
   require('big.js')
@@ -151,79 +151,124 @@ const main = async () => {
   logInfo(dex_runtime_data)
   console.table(dex_runtime_data)
 
-  dex_1_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
-    if (!isExecuting) {
 
-      isExecuting = true
+  console.log("\ndoing test 1...")
 
-      const swap_event = {
-        type: "swap-event",
-        origin_dex: dex_1.Name
-      }
-      logInfo(swap_event)
-      console.table(swap_event)
+  const default_interim_token_amount =
+  await getDefaultArbitrageAmount(
+    dex_1,
+    token0,
+    token1
+  )
 
-      try{
-        await checkArbitrage(
-          dex_1,
-          dex_2,
-          dex_1_pair_contract,
-          dex_2_pair_contract,
-          token0,
-          token1,
-          account,
-          contract,
-          provider
-        )
-      }catch(error){
-        console.log("\nSWAP HANDLER ERROR...\n")
-        console.log(error)
-        logError(error)
-      }
+  for(let i = 0; i < 100; i++) {
 
-      console.log("\nWaiting for swap event...")
+    const default_interim_token_amount_2 =
+      await getDefaultArbitrageAmount(
+        dex_1,
+        token0,
+        token1
+      )
 
-      isExecuting = false
+    await sleep(100);
       
-    } 
-  })
+    console.log(`iteration ${i} => ${default_interim_token_amount_2}`)
+  }
+  console.log("test 1 complete")
 
-  dex_2_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
-    if (!isExecuting) {
 
-      isExecuting = true
+  console.log("\ndoing test 2...")
+  const default_amount_profit =
+    await determineProfitForInterimTokenAmount(
+      token0.address,
+      token1.address,
+      default_interim_token_amount,
+      dex_1,
+      dex_2
+    )
+  console.log("test 2 complete")
+  console.log(default_amount_profit)
 
-      const swap_event = {
-        type: "swap-event",
-        origin_dex: dex_2.Name
-      }
-      logInfo(swap_event)
-      console.table(swap_event)
 
-      try{
-        await checkArbitrage(
-          dex_1,
-          dex_2,
-          dex_1_pair_contract,
-          dex_2_pair_contract,
-          token0,
-          token1,
-          account,
-          contract,
-          provider
-        )
-      }catch(error){
-        console.log("\nSWAP HANDLER ERROR...\n")
-        console.log(error)
-        logError(error)
-      }
+  
 
-      console.log("\nWaiting for swap event...")
 
-      isExecuting = false
+  // dex_1_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
+  //   if (!isExecuting) {
 
-    } 
-  })
+  //     isExecuting = true
+
+  //     const swap_event = {
+  //       type: "swap-event",
+  //       origin_dex: dex_1.Name
+  //     }
+  //     logInfo(swap_event)
+  //     console.table(swap_event)
+
+  //     try{
+  //       await checkArbitrage(
+  //         dex_1,
+  //         dex_2,
+  //         dex_1_pair_contract,
+  //         dex_2_pair_contract,
+  //         token0,
+  //         token1,
+  //         account,
+  //         contract,
+  //         provider
+  //       )
+  //     }catch(error){
+  //       console.log("\nSWAP HANDLER ERROR...\n")
+  //       console.log(error)
+  //       logError(error)
+  //     }
+
+  //     console.log("\nWaiting for swap event...")
+
+  //     isExecuting = false
+      
+  //   } 
+  // })
+
+  // dex_2_pair_contract.on('Swap', async (sender, amount0In, amount1In, amount0Out, amount1Out, to) => {
+  //   if (!isExecuting) {
+
+  //     isExecuting = true
+
+  //     const swap_event = {
+  //       type: "swap-event",
+  //       origin_dex: dex_2.Name
+  //     }
+  //     logInfo(swap_event)
+  //     console.table(swap_event)
+
+  //     try{
+  //       await checkArbitrage(
+  //         dex_1,
+  //         dex_2,
+  //         dex_1_pair_contract,
+  //         dex_2_pair_contract,
+  //         token0,
+  //         token1,
+  //         account,
+  //         contract,
+  //         provider
+  //       )
+  //     }catch(error){
+  //       console.log("\nSWAP HANDLER ERROR...\n")
+  //       console.log(error)
+  //       logError(error)
+  //     }
+
+  //     console.log("\nWaiting for swap event...")
+
+  //     isExecuting = false
+
+  //   } 
+  // })
+
+
+
 
   const initialization_complete = {
     type: "initialization-complete"
@@ -313,8 +358,6 @@ const checkArbitrage = async (
     token1
   )
 
-  console.log("TRACE checkArbitrage 1")
-
   const entry1 = {
     type: "arbitrage",
     data_1: "estimated profit",
@@ -377,8 +420,6 @@ const checkArbitrage = async (
 
     console.log("Executing trades is enabled")
 
-    console.log("TRACE checkArbitrage 2")
-
     // routerPath buvo router objektai
     await attemptArbitrage(
       account,
@@ -391,8 +432,6 @@ const checkArbitrage = async (
       main_token_amount_required_to_buy_interim_tokens.toString()
     )
 
-    console.log("TRACE checkArbitrage 3")
-
   } else {
 
     const entry = {
@@ -404,11 +443,7 @@ const checkArbitrage = async (
     console.log("Executing trades is disabled")
   }
 
-  console.log("TRACE checkArbitrage 4")
-
 }
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const determineDynamicProfit = async (
   dex_to_buy,
@@ -486,7 +521,6 @@ const determineDynamicProfit = async (
 
   console.log(`\nInterim token reserves on DEX TO BUY => \t${token1_reserves_on_dex_to_buy}`)
   console.log(`Interim token reserves on DEX TO SELL => \t${token1_reserves_on_dex_to_sell}`)
-  await sleep(10);
 
   // check default amount first
   const default_interim_token_amount =
@@ -495,18 +529,12 @@ const determineDynamicProfit = async (
       token0,
       token1
     )
-  
-  await sleep(10);
-
-  console.log("TRACE determineDynamicProfit 1")
 
   // something failed
   if (!default_interim_token_amount) {
     set_local_state_message("Default arbitrage amount determination failed")
     return state;
   }
-
-  console.log("TRACE determineDynamicProfit 2")
 
   const default_amount_profit =
     await determineProfitForInterimTokenAmount(
@@ -517,26 +545,17 @@ const determineDynamicProfit = async (
       dex_to_sell
     )
 
-  await sleep(10);
-
-  console.log("TRACE determineDynamicProfit 3")
-  
-
   // something failed during default amount check
   if (!default_amount_profit.success) {
     set_local_state_message("Default arbitrage amount profit determination failed")
     return state;
   }
 
-  console.log("TRACE determineDynamicProfit 4")
-
   // if the default amount is not profitable, it's not worth continuing
   if (!default_amount_profit.profitable) {
     set_local_state_message("Default arbitrage amount not profitable")
     return state;
   }
-
-  console.log("TRACE determineDynamicProfit 5")
 
   // if we reached this part
   // it means at least the default amount was profitable 
@@ -548,8 +567,6 @@ const determineDynamicProfit = async (
     0,
     "Default arbitrage amount is profitable"
   )
-
-  console.log("TRACE determineDynamicProfit 6")
 
   // from here 
   //    => 
@@ -572,9 +589,6 @@ const determineDynamicProfit = async (
       dex_to_sell
     )
 
-  await sleep(10);
-
-  console.log("TRACE determineDynamicProfit 7")
 
   if (!mid_reserve_profit.success) {
     set_local_state_message("Mid range profit determination failed")
@@ -582,8 +596,6 @@ const determineDynamicProfit = async (
   }
 
   if (mid_reserve_profit.profitable) {
-
-    console.log("TRACE determineDynamicProfit 8")
 
     // if we reached this part
     // it means the mid range was profitable and we should save it 
@@ -598,7 +610,6 @@ const determineDynamicProfit = async (
     // check higher ranges
     for (let i = 0; i < higher_ratios.length; i++) {
 
-
       const reserve =
         interim_token_reserves_on_dex_to_buy.times(higher_ratios[i]).round();
       const profit =
@@ -609,8 +620,6 @@ const determineDynamicProfit = async (
           dex_to_buy,
           dex_to_sell
         );
-      
-      await sleep(10);
 
       if (!profit.profitable) {
         // if the range is not profitable, we need to break and use previous one
@@ -630,8 +639,6 @@ const determineDynamicProfit = async (
 
   } else {
 
-    console.log("TRACE determineDynamicProfit 9")
-
     // check lower ranges
     for (let i = 0; i < lower_rations.length; i++) {
 
@@ -645,8 +652,6 @@ const determineDynamicProfit = async (
           dex_to_buy,
           dex_to_sell
         );
-
-      await sleep(10);
 
       if (profit.profitable) {
         // if the range is profitable, we break imediately 
@@ -686,8 +691,6 @@ const attemptArbitrage = async (
   
   const fee_data = 
     await provider.getFeeData();
-
-  await sleep(10);
 
   const transaction =
     await contract
@@ -795,6 +798,8 @@ const logCurrentConfig = () => {
     constraints_gas_price: config.Constraints.GasPrice
   })
 }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 main().catch((error) => {
   console.log("\nMAIN LOOP ERROR...\n")

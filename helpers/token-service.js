@@ -142,6 +142,7 @@ const getDefaultArbitrageAmount = async (
     } catch (error){
 
         // logError(error)
+        console.log("error in getDefaultArbitrageAmount")
         console.log(error)
 
         return null;
