@@ -1,14 +1,14 @@
 {
-    "Port": 5001,
+    "Port": 5003,
     "Chain": "Polygon",
-    "ContractAddress": "0xA388228A1fA75a5F5844226E2874d7EE4d940256",
+	"ContractAddress": "0x4D5D3FaE9b08a4FA2aEB9Bc0d86E3dB3b3126438",
     "MainToken": {
-        "Name": "TETHER",
-        "Address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+        "Name": "WETH",
+        "Address": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     },
     "InterimToken": {
-        "Name": "WMATIC",
-        "Address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"
+        "Name": "WOO",
+        "Address": "0x1B815d120B3eF02039Ee11dC2d33DE7aA4a8C603"
     },
     "Dex_1": {
         "Name": "QuickswapV2",
@@ -23,7 +23,7 @@
     "Constraints":{
         "ExecuteTrades": true,
         "MinPriceDifferencePercentage": 0.5,
-        "RemoteLoggingEnabled": false,
-        "MinMainTokenProfit": "2"
+		"RemoteLoggingEnabled": true,
+		"MinMainTokenProfit": "0.001"
     }
 }

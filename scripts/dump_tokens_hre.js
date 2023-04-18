@@ -20,10 +20,9 @@ const {
 
 const {
     getPairContract,
-    calculatePriceForTokens
+    calculatePriceForTokens,
+    getMainTokenPriceOnDex
 } = require('../helpers/token-service')
-
-const default_decimals = 18;
 
 const main = async () => {
 
@@ -42,11 +41,11 @@ const main = async () => {
     console.log("initialized");
 
     // some variable mapping to make the logic clearer
-    const dex_to_swap = dex_2
-    const dex_to_swap_pair_contract = dex_2_pair_contract;
+    const dex_to_swap = dex_1
+    const dex_to_swap_pair_contract = dex_1_pair_contract;
 
-    const other_dex = dex_1;
-    const other_dex_pair_contract = dex_1_pair_contract;
+    const other_dex = dex_2;
+    const other_dex_pair_contract = dex_2_pair_contract;
 
     // wmatic holder
     // "0x0AFF6665bB45bF349489B20E225A6c5D78E2280F"
@@ -54,10 +53,13 @@ const main = async () => {
     // tether holder
     // "0xee5B5B923fFcE93A870B3104b7CA09c3db80047A"
 
+    // woo holder
+    // 0x63dfe4e34a3bfc00eb0220786238a7c6cef8ffc4
+
     const token_to_swap = interim_token;
     const token_to_receive = main_token;
-    const wallet_to_impersonate = "0x0AFF6665bB45bF349489B20E225A6c5D78E2280F";
-    const token_amount_to_swap = "100";
+    const wallet_to_impersonate = "0x63dfe4e34a3bfc00eb0220786238a7c6cef8ffc4";
+    const token_amount_to_swap = "10000";
 
     const prices_before = await calculatePriceForTokens(
         dex_to_swap_pair_contract, 
@@ -69,6 +71,20 @@ const main = async () => {
         main_token, 
         interim_token
     )
+
+    const new_main_token_price_before = 
+        await getMainTokenPriceOnDex(
+            dex_to_swap, 
+            token_to_receive, 
+            token_to_swap
+        )
+
+    const new_main_token_price_other = 
+        await getMainTokenPriceOnDex(
+            other_dex, 
+            token_to_receive, 
+            token_to_swap
+        )
 
     console.log(`\nswaping ${token_amount_to_swap} tokens`);
 
@@ -87,16 +103,26 @@ const main = async () => {
         interim_token
     )
 
+    const new_main_token_price_after = 
+        await getMainTokenPriceOnDex(
+            dex_to_swap, 
+            token_to_receive, 
+            token_to_swap
+        )
+
     // resulting price difference
-    console.log("\nPrice calculation")
+    console.log("\nMathematical price")
     console.table({
         'Main Token Price Before': `1 ${main_token.symbol} = ${Number(prices_before.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
         'Main Token Price After': `1 ${main_token.symbol} = ${Number(prices_after.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
         'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(prices_another.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
-        ' ': {},
-        'Interim Token Price Before': `1 ${interim_token.symbol} = ${Number(prices_before.one_interim_token_cost_in_main)} ${main_token.symbol}`,
-        'Interim Token Price After': `1 ${interim_token.symbol} = ${Number(prices_after.one_interim_token_cost_in_main)} ${main_token.symbol}`,
-        'Interim Token Price On Other Dex': `1 ${interim_token.symbol} = ${Number(prices_another.one_interim_token_cost_in_main)} ${main_token.symbol}`,
+    })
+
+    console.log("\nDEX price")
+    console.table({
+        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_before, token_to_receive.decimals))} ${interim_token.symbol}`,
+        'Main Token Price After': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_after, token_to_receive.decimals))} ${interim_token.symbol}`,
+        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_other, token_to_receive.decimals))} ${interim_token.symbol}`,
     })
 }
 

@@ -2,6 +2,11 @@
 
 -deklaracija
 -laura
-- infura shudas nes socketu neturi
 
-- padaryt kazkoki random botu paleidimo laika !!! nes jei per scripta paleisi visus vienu metu alchemy prades keiktis
+
+- reikia gal kainu skaiciavima irgi padaryto per AmountsIn ir AmountsOut?
+  nes dabar kai rodom 
+    DEX 1 => 1 WETH costs 6737.548844752051 WOO
+    DEX 2 => 1 WETH costs 10646.948936138471 WOO
+  tai cia pagal matematika paskaiciuota
+  jei ziuretume pagal AmountsIn ir AmountsOut gautusi tiksliau

@@ -257,7 +257,7 @@ const calculateMainTokenPriceDifferencePercentage = async(
     const main_token_dex_2_price = 
         Number(dex_2_on_chain_prices.one_main_token_cost_in_interim)
 
-    console.log(`\nDEX 1 => 1 ${main_token.symbol} costs ${main_token_dex_1_price} ${interim_token.symbol}`)
+    console.log(`DEX 1 => 1 ${main_token.symbol} costs ${main_token_dex_1_price} ${interim_token.symbol}`)
     console.log(`DEX 2 => 1 ${main_token.symbol} costs ${main_token_dex_2_price} ${interim_token.symbol}`)
     
     // price difference as a percentage
@@ -266,6 +266,106 @@ const calculateMainTokenPriceDifferencePercentage = async(
 
     return main_token_price_difference_percentage;
 }
+
+
+
+const calculateMainTokenPriceDifferencePercentage_2 = async(
+    dex_1, 
+    dex_2, 
+    main_token,
+    interim_token
+) => {
+
+    // get dex prices
+    const dex_1_one_main_token_cost_in_interim_in_wei = 
+        await getMainTokenPriceOnDex(
+            dex_1, 
+            main_token, 
+            interim_token
+        );
+    const dex_2_one_main_token_cost_in_interim_in_wei = 
+        await getMainTokenPriceOnDex(
+            dex_2, 
+            main_token, 
+            interim_token
+        );
+
+    // convert from wei
+    const dex_1_one_main_token_cost_in_interim = 
+        ethers.utils.formatUnits(
+            dex_1_one_main_token_cost_in_interim_in_wei, 
+            main_token.decimals
+        );
+    const dex_2_one_main_token_cost_in_interim = 
+        ethers.utils.formatUnits(
+            dex_2_one_main_token_cost_in_interim_in_wei, 
+            main_token.decimals
+        );
+
+    // rounded and calculate difference percentage
+    const main_token_dex_1_price = 
+        Number(dex_1_one_main_token_cost_in_interim)
+    const main_token_dex_2_price = 
+        Number(dex_2_one_main_token_cost_in_interim)
+    const main_token_price_difference_percentage = 
+        (((main_token_dex_1_price - main_token_dex_2_price) / main_token_dex_2_price) * 100).toFixed(2)
+
+    console.log(`\n${dex_1.Name} => 1 ${main_token.symbol} costs ${main_token_dex_1_price} ${interim_token.symbol}`)
+    console.log(`${dex_2.Name} => 1 ${main_token.symbol} costs ${main_token_dex_2_price} ${interim_token.symbol}`)
+
+    return {
+        main_token_dex_1_price,
+        main_token_dex_2_price,
+        delta: Math.abs(main_token_price_difference_percentage)
+    }
+}
+
+const determine_trade_order = (
+    dex_1,
+    dex_2,
+    main_token_price_on_dex_1,
+    main_token_price_on_dex_2
+) => {
+
+    const result = {
+        dex_to_buy: null,
+        dex_to_sell: null
+    }
+
+    if (main_token_price_on_dex_1 > main_token_price_on_dex_2) {
+        result.dex_to_buy = dex_1;
+        result.dex_to_sell = dex_2;
+    } else {
+        result.dex_to_buy = dex_2;
+        result.dex_to_sell = dex_1;
+    }
+
+    return result;
+}
+
+
+const getMainTokenPriceOnDex = async(
+    dex, 
+    main_token, 
+    interim_token
+) => {
+    // how many interim tokens we can buy for 1 main token
+    try {
+        const dex_amounts = await dex.Router.getAmountsOut(
+            ethers.utils.parseUnits("1", main_token.decimals),
+            [main_token.address, interim_token.address]
+        )
+    
+        return dex_amounts[1];
+
+    } catch (error){
+        console.log("error getMainTokenPriceOnDex")
+        console.log(error)
+
+        return -1;
+    }
+}
+
 
 const determinePotentialTradeOrder = async( 
     price_difference_percentage,
@@ -303,6 +403,9 @@ module.exports = {
     calculatePriceForTokens,
     calculatePriceForTokenIndexes,
     calculateMainTokenPriceDifferencePercentage,
+    calculateMainTokenPriceDifferencePercentage_2,
     getDefaultArbitrageAmount,
-    determineProfitForInterimTokenAmount
+    determineProfitForInterimTokenAmount,
+    getMainTokenPriceOnDex,
+    determine_trade_order
 }

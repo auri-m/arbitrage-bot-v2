@@ -32,8 +32,10 @@ const {
   getTokenIndexInsidePair,
   determinePotentialTradeOrder,
   calculateMainTokenPriceDifferencePercentage,
+  calculateMainTokenPriceDifferencePercentage_2,
   getDefaultArbitrageAmount,
-  determineProfitForInterimTokenAmount
+  determineProfitForInterimTokenAmount,
+  determine_trade_order
 } = require('./helpers/token-service')
 
 const {
@@ -156,13 +158,6 @@ const main = async () => {
 
       isExecuting = true
 
-      const swap_event = {
-        type: "swap-event",
-        origin_dex: dex_1.Name
-      }
-      logInfo(swap_event)
-      console.table(swap_event)
-
       try{
         await checkArbitrage(
           dex_1,
@@ -192,13 +187,6 @@ const main = async () => {
     if (!isExecuting) {
 
       isExecuting = true
-
-      const swap_event = {
-        type: "swap-event",
-        origin_dex: dex_2.Name
-      }
-      logInfo(swap_event)
-      console.table(swap_event)
 
       try{
         await checkArbitrage(
@@ -244,6 +232,7 @@ const checkArbitrage = async (
   provider
 ) => {
 
+  console.log("\n!!! OLD PRICE LOGIC !!!")
   const price_difference_percentage =
     await calculateMainTokenPriceDifferencePercentage(
       dex_1_PairContract,
@@ -252,14 +241,7 @@ const checkArbitrage = async (
       token1
     );
 
-  const log_entry = {
-    type: "arbitrage",
-    data_1: "check price result",
-    price_difference_percentage: price_difference_percentage
-
-  }
-  logInfo(log_entry)
-  console.log(`\nMain token price difference ${price_difference_percentage} %`)
+  console.log(`Main token price difference ${price_difference_percentage} %`)
 
   const potential_trade_order =
     await determinePotentialTradeOrder(
@@ -271,30 +253,50 @@ const checkArbitrage = async (
 
   if (!potential_trade_order.TradeOrderAvailable) {
 
-    const entry = {
-      type: "arbitrage",
-      data_1: "no arbitrage (no trade path)",
-      data_2: price_difference_percentage
-    }
-    logInfo(entry)
-
     console.log(`No Arbitrage (No Trade Path) Currently Available`)
     console.log(`-----------------------------------------\n`)
-    isExecuting = false
+  }
+  if (potential_trade_order.TradeOrderAvailable) {
 
-    return
+    console.log(`DEX to buy => \t${potential_trade_order.DexToBuy.Name}`)
+    console.log(`DEX to sell => \t${potential_trade_order.DexToSell.Name}`)
   }
 
-  const entry = {
-    type: "arbitrage",
-    data_1: "trade order",
-    dex_to_buy: potential_trade_order.DexToBuy.Name,
-    dex_to_sell: potential_trade_order.DexToSell.Name
-  }
-  logInfo(entry)
+  console.log("\n!!! NEW PRICE LOGIC !!!")
+ 
+  const {
+    main_token_dex_1_price,
+    main_token_dex_2_price,
+    delta
+  } = await calculateMainTokenPriceDifferencePercentage_2(
+    dex_1,
+    dex_2,
+    token0,
+    token1
+  );
 
-  console.log(`\nDEX to buy => \t${potential_trade_order.DexToBuy.Name}`)
-  console.log(`DEX to sell => \t${potential_trade_order.DexToSell.Name}`)
+  console.log(`Main token price difference ${delta} %`)
+
+  if (Number(delta) < Number(_min_price_difference_percentage)) {
+
+    console.log(`No Arbitrage (Delta Not Big Enough) Currently Available`)
+    console.log(`-----------------------------------------\n`)
+
+    return;
+  }
+
+  const {
+    dex_to_buy,
+    dex_to_sell
+  } = determine_trade_order(
+    dex_1,
+    dex_2,
+    main_token_dex_1_price,
+    main_token_dex_2_price
+  )
+
+  console.log(`DEX to buy  => \t${dex_to_buy.Name}`)
+  console.log(`DEX to sell => \t${dex_to_sell.Name}`)
 
   const {
     estimated_profit_after_final_sale,
@@ -303,8 +305,8 @@ const checkArbitrage = async (
     token_ratio_used,
     message
   } = await determineDynamicProfit(
-    potential_trade_order.DexToBuy,
-    potential_trade_order.DexToSell,
+    dex_to_buy,
+    dex_to_sell,
     dex_1,
     dex_2,
     dex_1_PairContract,
@@ -326,8 +328,9 @@ const checkArbitrage = async (
   logInfo(entry1)
 
   console.log(`\nEstimated profit from arbitraging:`);
-  console.log(`   Buy ${ethers.utils.formatUnits(interim_token_arbitrage_amount, token1.decimals)} of ${token1.symbol} `)
-  console.log(`   Profit after selling: ${ethers.utils.formatUnits(estimated_profit_after_final_sale.toString(), token0.decimals)} ${token0.symbol}`)
+  console.log(`   Buy ${ethers.utils.formatUnits(interim_token_arbitrage_amount, token1.decimals)} ${token1.symbol}`)
+  console.log(`   For ${ethers.utils.formatUnits(main_token_amount_required_to_buy_interim_tokens, token0.decimals)} ${token0.symbol}`)
+  console.log(`   Profit after selling ${token1.symbol} is ${ethers.utils.formatUnits(estimated_profit_after_final_sale.toString(), token0.decimals)} ${token0.symbol}`)
   console.log(`   Last profitable ratio: ${token_ratio_used}`)
   console.log(`   Message: ${message}\n`)
 
@@ -343,7 +346,6 @@ const checkArbitrage = async (
 
     console.log(`No Arbitrage (No Profit) Currently Available\n`)
     console.log(`-----------------------------------------\n`)
-    isExecuting = false
 
     return;
   }
@@ -361,7 +363,6 @@ const checkArbitrage = async (
     console.log(`No Arbitrage (Not Enough Profit) Currently Available`)
     console.log(`Min Profit is at least ${MIN_MAIN_TOKEN_PROFIT} ${token0.symbol}\n`)
     console.log(`-----------------------------------------\n`)
-    isExecuting = false
 
     return;
   }
@@ -376,16 +377,17 @@ const checkArbitrage = async (
     logInfo(entry)
 
     console.log("Executing trades is enabled")
+    console.log(`\tBuy on => ${dex_to_buy.Name}`)
+    console.log(`\tSell on => ${dex_to_sell.Name}`)
 
     console.log("TRACE checkArbitrage 2")
 
-    // routerPath buvo router objektai
     await attemptArbitrage(
       account,
       contract,
       provider,
-      potential_trade_order.DexToBuy.Router.address,
-      potential_trade_order.DexToSell.Router.address,
+      dex_to_buy.Router.address,
+      dex_to_sell.Router.address,
       token0,
       token1,
       main_token_amount_required_to_buy_interim_tokens.toString()
@@ -484,9 +486,9 @@ const determineDynamicProfit = async (
     throw "cannot determine DEXes to get token reserves";
   }
 
-  console.log(`\nInterim token reserves on DEX TO BUY => \t${token1_reserves_on_dex_to_buy}`)
-  console.log(`Interim token reserves on DEX TO SELL => \t${token1_reserves_on_dex_to_sell}`)
-  await sleep(10);
+  console.log(`\nInterim token reserves on DEX TO BUY => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, token1.decimals)}`)
+  console.log(`Interim token reserves on DEX TO SELL => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, token1.decimals) }`)
+  await sleep(50);
 
   // check default amount first
   const default_interim_token_amount =
@@ -496,7 +498,7 @@ const determineDynamicProfit = async (
       token1
     )
   
-  await sleep(10);
+  await sleep(50);
 
   console.log("TRACE determineDynamicProfit 1")
 
@@ -517,7 +519,7 @@ const determineDynamicProfit = async (
       dex_to_sell
     )
 
-  await sleep(10);
+  await sleep(50);
 
   console.log("TRACE determineDynamicProfit 3")
   
@@ -527,12 +529,18 @@ const determineDynamicProfit = async (
     set_local_state_message("Default arbitrage amount profit determination failed")
     return state;
   }
-
+  
   console.log("TRACE determineDynamicProfit 4")
 
   // if the default amount is not profitable, it's not worth continuing
   if (!default_amount_profit.profitable) {
-    set_local_state_message("Default arbitrage amount not profitable")
+    update_local_state(
+      default_amount_profit.profit, 
+      default_amount_profit.main_token_amount_required_to_buy, 
+      default_amount_profit.interim_token_amount_to_verify, 
+      -1,
+      "Default arbitrage amount not profitable"
+    )
     return state;
   }
 
@@ -572,7 +580,7 @@ const determineDynamicProfit = async (
       dex_to_sell
     )
 
-  await sleep(10);
+  await sleep(50);
 
   console.log("TRACE determineDynamicProfit 7")
 
@@ -610,7 +618,7 @@ const determineDynamicProfit = async (
           dex_to_sell
         );
       
-      await sleep(10);
+      await sleep(50);
 
       if (!profit.profitable) {
         // if the range is not profitable, we need to break and use previous one
@@ -646,7 +654,7 @@ const determineDynamicProfit = async (
           dex_to_sell
         );
 
-      await sleep(10);
+      await sleep(50);
 
       if (profit.profitable) {
         // if the range is profitable, we break imediately 
@@ -687,7 +695,7 @@ const attemptArbitrage = async (
   const fee_data = 
     await provider.getFeeData();
 
-  await sleep(10);
+  await sleep(50);
 
   const transaction =
     await contract
