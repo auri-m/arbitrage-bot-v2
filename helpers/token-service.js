@@ -128,13 +128,20 @@ const calculatePriceForTokenIndexes = async (
 const getDefaultArbitrageAmount = async (    
     dex_to_buy,
     main_token,
-    interim_token
+    interim_token,
+    default_main_token_arbitrage_amount
 ) => {
 
     try {
         const min_amounts = await dex_to_buy.Router.getAmountsOut(
-            ethers.utils.parseUnits("1", main_token.decimals),
-            [main_token.address, interim_token.address]
+            ethers.utils.parseUnits(
+                default_main_token_arbitrage_amount, 
+                main_token.decimals
+            ),
+            [
+                main_token.address, 
+                interim_token.address
+            ]
         )
     
         return min_amounts[1]

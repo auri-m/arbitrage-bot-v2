@@ -55,7 +55,12 @@ const _min_price_difference_percentage =
   config.Constraints.MinPriceDifferencePercentage;
 
 const MIN_MAIN_TOKEN_PROFIT = 
-  config.Constraints.MinMainTokenProfit;
+  config.Constraints.MinMainTokenProfit.toString();
+
+const DEFAULT_ARBITRAGE_AMOUNT = 
+  config.Constraints.DefaultArbitrageAmount
+    ? config.Constraints.DefaultArbitrageAmount.toString()
+    : "1";
 
 let isExecuting = false
 
@@ -495,7 +500,8 @@ const determineDynamicProfit = async (
     await getDefaultArbitrageAmount(
       dex_to_buy,
       token0,
-      token1
+      token1,
+      DEFAULT_ARBITRAGE_AMOUNT
     )
   
   await sleep(50);

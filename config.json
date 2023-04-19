@@ -24,6 +24,7 @@
         "ExecuteTrades": true,
         "MinPriceDifferencePercentage": 0.5,
 		"RemoteLoggingEnabled": true,
-		"MinMainTokenProfit": "0.001"
+		"MinMainTokenProfit": 0.001,
+        "DefaultArbitrageAmount": 0.1
     }
 }
