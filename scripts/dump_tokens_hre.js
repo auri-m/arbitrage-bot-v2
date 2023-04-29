@@ -59,7 +59,7 @@ const main = async () => {
     const token_to_swap = interim_token;
     const token_to_receive = main_token;
     const wallet_to_impersonate = "0x63dfe4e34a3bfc00eb0220786238a7c6cef8ffc4";
-    const token_amount_to_swap = "10000";
+    const token_amount_to_swap = "1000";
 
     const prices_before = await calculatePriceForTokens(
         dex_to_swap_pair_contract, 

@@ -51,6 +51,11 @@ const {
   logInfo
 } = require('./helpers/log-service');
 
+const {
+  getDefaultArbitrageAmount_simulated,
+  determineProfitForInterimTokenAmount_simulated
+} = require("./helpers/arbitrage-simulation-service")
+
 const _min_price_difference_percentage =
   config.Constraints.MinPriceDifferencePercentage;
 
@@ -237,36 +242,6 @@ const checkArbitrage = async (
   provider
 ) => {
 
-  console.log("\n!!! OLD PRICE LOGIC !!!")
-  const price_difference_percentage =
-    await calculateMainTokenPriceDifferencePercentage(
-      dex_1_PairContract,
-      dex_2_PairContract,
-      token0,
-      token1
-    );
-
-  console.log(`Main token price difference ${price_difference_percentage} %`)
-
-  const potential_trade_order =
-    await determinePotentialTradeOrder(
-      price_difference_percentage,
-      _min_price_difference_percentage,
-      dex_1,
-      dex_2
-    )
-
-  if (!potential_trade_order.TradeOrderAvailable) {
-
-    console.log(`No Arbitrage (No Trade Path) Currently Available`)
-    console.log(`-----------------------------------------\n`)
-  }
-  if (potential_trade_order.TradeOrderAvailable) {
-
-    console.log(`DEX to buy => \t${potential_trade_order.DexToBuy.Name}`)
-    console.log(`DEX to sell => \t${potential_trade_order.DexToSell.Name}`)
-  }
-
   console.log("\n!!! NEW PRICE LOGIC !!!")
  
   const {
@@ -321,6 +296,37 @@ const checkArbitrage = async (
   )
 
   console.log("TRACE checkArbitrage 1")
+
+  const {
+    estimated_profit_after_final_sale_2,
+    main_token_amount_required_to_buy_interim_tokens_2,
+    interim_token_arbitrage_amount_2,
+    token_ratio_used_2,
+    message_2
+  } = await determineDynamicProfit_2(
+    dex_to_buy,
+    dex_to_sell,
+    dex_1,
+    dex_2,
+    dex_1_PairContract,
+    dex_2_PairContract,
+    token0,
+    token1
+  )
+
+  console.log("\n\n\n\n\ndetermineDynamicProfit")
+  console.log(`   estimated_profit_after_final_sale => ${estimated_profit_after_final_sale}`)
+  console.log(`   main_token_amount_required_to_buy_interim_tokens => ${main_token_amount_required_to_buy_interim_tokens}`)
+  console.log(`   interim_token_arbitrage_amount => ${interim_token_arbitrage_amount}`)
+  console.log(`   token_ratio_used => ${token_ratio_used}`)
+  console.log(`   message => ${message}`)
+
+  console.log("n\determineDynamicProfit_2")
+  console.log(`   estimated_profit_after_final_sale_2 => ${estimated_profit_after_final_sale_2}`)
+  console.log(`   main_token_amount_required_to_buy_interim_tokens_2 => ${main_token_amount_required_to_buy_interim_tokens_2}`)
+  console.log(`   interim_token_arbitrage_amount_2 => ${interim_token_arbitrage_amount_2}`)
+  console.log(`   token_ratio_used_2 => ${token_ratio_used_2}`)
+  console.log(`   message_2 => ${message_2}`)
 
   const entry1 = {
     type: "arbitrage",
@@ -451,12 +457,29 @@ const determineDynamicProfit = async (
     state.message = message;
   }
 
+  const log_profit_data_from_contract = profit_data => log_profit_data(profit_data, "From contract")
+
+  const log_profit_data_from_simulation = profit_data => log_profit_data(profit_data, "From simulation")
+
+  const log_profit_data = (
+    profit_data,
+    message
+  ) => {
+    console.log(message)
+    console.log(`   main_token_amount_required_to_buy => ${ethers.utils.formatEther(profit_data.main_token_amount_required_to_buy)} \t ${profit_data.main_token_amount_required_to_buy}`)
+    console.log(`   main_token_amount_received_after_sale => ${ethers.utils.formatEther(profit_data.main_token_amount_received_after_sale)} \t ${profit_data.main_token_amount_received_after_sale}`)
+    console.log(`   profit => ${profit_data.profit}`)
+    console.log(`   interim_token_amount_to_verify => ${ethers.utils.formatEther(profit_data.interim_token_amount_to_verify)} \t ${profit_data.interim_token_amount_to_verify}`)
+  }
+
   const set_local_state_message = 
     (message) => 
       state.message = message;
 
   let token1_reserves_on_dex_to_buy = null;
   let token1_reserves_on_dex_to_sell = null;
+  let token0_reserves_on_dex_to_buy = null;
+  let token0_reserves_on_dex_to_sell = null;
   let token1_amount_for_arbitrage = null;
 
   // Get interim token reserves on both DEXes
@@ -468,10 +491,17 @@ const determineDynamicProfit = async (
     const reserves_on_dex_to_sell =
       await getReserves(dex_2_PairContract)
 
+    // interim token reserves
     token1_reserves_on_dex_to_buy =
       reserves_on_dex_to_buy[token1.index_Inside_Dex1_Pair]
     token1_reserves_on_dex_to_sell =
       reserves_on_dex_to_sell[token1.index_Inside_Dex2_Pair]
+
+    // main token reserves
+    token0_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token0.index_Inside_Dex1_Pair]
+    token0_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token0.index_Inside_Dex2_Pair]
 
   } else if (dex_to_buy.Name == dex_2.Name) {
 
@@ -481,15 +511,36 @@ const determineDynamicProfit = async (
     const reserves_on_dex_to_sell =
       await getReserves(dex_1_PairContract)
 
+    // interim token reserves
     token1_reserves_on_dex_to_buy =
       reserves_on_dex_to_buy[token1.index_Inside_Dex2_Pair]
     token1_reserves_on_dex_to_sell =
       reserves_on_dex_to_sell[token1.index_Inside_Dex1_Pair]
 
+    // main token reserves
+    token0_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token0.index_Inside_Dex2_Pair]
+    token0_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token0.index_Inside_Dex1_Pair]
+
   } else {
     // weird shit
     throw "cannot determine DEXes to get token reserves";
   }
+
+
+  // simalation stuff mapping
+  const interim_token_reserves_on_dex_to_buy_for_simulation = 
+    token1_reserves_on_dex_to_buy;
+
+  const interim_token_reserves_on_dex_to_sell_for_simulation = 
+    token1_reserves_on_dex_to_sell;
+
+  const main_token_reserves_on_dex_to_buy_for_simulation = 
+    token0_reserves_on_dex_to_buy;
+
+  const main_token_reserves_on_dex_to_sell_for_simulation = 
+    token0_reserves_on_dex_to_sell;
 
   console.log(`\nInterim token reserves on DEX TO BUY => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, token1.decimals)}`)
   console.log(`Interim token reserves on DEX TO SELL => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, token1.decimals) }`)
@@ -503,6 +554,18 @@ const determineDynamicProfit = async (
       token1,
       DEFAULT_ARBITRAGE_AMOUNT
     )
+
+  const default_interim_token_amount_from_simulation = 
+    getDefaultArbitrageAmount_simulated(
+      DEFAULT_ARBITRAGE_AMOUNT,
+      token0,
+      main_token_reserves_on_dex_to_buy_for_simulation,
+      interim_token_reserves_on_dex_to_buy_for_simulation
+    )
+
+  console.log(`\nDefault interim amount`)
+  console.log(`From contract => \t${default_interim_token_amount}`)
+  console.log(`From simulation => \t${default_interim_token_amount_from_simulation}`)
   
   await sleep(50);
 
@@ -524,6 +587,18 @@ const determineDynamicProfit = async (
       dex_to_buy,
       dex_to_sell
     )
+  const default_amount_profit_simulated =
+    determineProfitForInterimTokenAmount_simulated(
+      default_interim_token_amount_from_simulation,
+      interim_token_reserves_on_dex_to_buy_for_simulation,
+      interim_token_reserves_on_dex_to_sell_for_simulation,
+      main_token_reserves_on_dex_to_buy_for_simulation,
+      main_token_reserves_on_dex_to_sell_for_simulation
+    )
+
+  console.log(`\nDefault amount profit`)
+  log_profit_data_from_contract(default_amount_profit)
+  log_profit_data_from_simulation(default_amount_profit_simulated)
 
   await sleep(50);
 
@@ -586,6 +661,19 @@ const determineDynamicProfit = async (
       dex_to_sell
     )
 
+  const mid_reserve_profit_simulated =
+    await determineProfitForInterimTokenAmount_simulated(
+      mid_reserve.toFixed(),
+      interim_token_reserves_on_dex_to_buy_for_simulation,
+      interim_token_reserves_on_dex_to_sell_for_simulation,
+      main_token_reserves_on_dex_to_buy_for_simulation,
+      main_token_reserves_on_dex_to_sell_for_simulation
+   )
+
+   console.log(`\nMid range profit`)
+   log_profit_data_from_contract(mid_reserve_profit)
+   log_profit_data_from_simulation(mid_reserve_profit_simulated)
+
   await sleep(50);
 
   console.log("TRACE determineDynamicProfit 7")
@@ -623,7 +711,20 @@ const determineDynamicProfit = async (
           dex_to_buy,
           dex_to_sell
         );
-      
+
+      const profit_simulated =
+        await determineProfitForInterimTokenAmount_simulated(
+          reserve.toFixed(),
+          interim_token_reserves_on_dex_to_buy_for_simulation,
+          interim_token_reserves_on_dex_to_sell_for_simulation,
+          main_token_reserves_on_dex_to_buy_for_simulation,
+          main_token_reserves_on_dex_to_sell_for_simulation
+        );
+
+      console.log(`\nHigh range ${higher_ratios[i]} profit`)
+      log_profit_data_from_contract(profit)
+      log_profit_data_from_simulation(profit_simulated)
+            
       await sleep(50);
 
       if (!profit.profitable) {
@@ -660,6 +761,20 @@ const determineDynamicProfit = async (
           dex_to_sell
         );
 
+      const profit_simulated =
+        await determineProfitForInterimTokenAmount_simulated(
+          reserve.toFixed(),
+          interim_token_reserves_on_dex_to_buy_for_simulation,
+          interim_token_reserves_on_dex_to_sell_for_simulation,
+          main_token_reserves_on_dex_to_buy_for_simulation,
+          main_token_reserves_on_dex_to_sell_for_simulation
+        );
+
+      console.log(`\nLow range ${lower_rations[i]} profit`)
+
+      log_profit_data_from_contract(profit)
+      log_profit_data_from_simulation(profit_simulated)
+
       await sleep(50);
 
       if (profit.profitable) {
@@ -681,6 +796,243 @@ const determineDynamicProfit = async (
   return state;
 
 }
+
+const determineDynamicProfit_2 = async (
+  dex_to_buy,
+  dex_to_sell,
+  dex_1,
+  dex_2,
+  dex_1_PairContract,
+  dex_2_PairContract,
+  token0,
+  token1
+) => {
+
+  // local state
+  const state = {
+    estimated_profit_after_final_sale: -1,
+    main_token_amount_required_to_buy_interim_tokens: -1,
+    interim_token_arbitrage_amount: -1,
+    token_ratio_used: -1,
+    message: ""
+  };
+
+  const update_local_state = (
+    profit, 
+    main_token_amount, 
+    interim_token_amount, 
+    ratio,
+    message
+  ) => {
+    state.estimated_profit_after_final_sale = profit;
+    state.main_token_amount_required_to_buy_interim_tokens = main_token_amount;
+    state.interim_token_arbitrage_amount = interim_token_amount;
+    state.token_ratio_used = ratio;
+    state.message = message;
+  }
+
+  const set_local_state_message = 
+    (message) => 
+      state.message = message;
+
+  let token1_reserves_on_dex_to_buy = null;
+  let token1_reserves_on_dex_to_sell = null;
+  let token0_reserves_on_dex_to_buy = null;
+  let token0_reserves_on_dex_to_sell = null;
+  let token1_amount_for_arbitrage = null;
+
+  // Get interim token reserves on both DEXes
+  if (dex_to_buy.Name == dex_1.Name) {
+
+    // DEX 1 is the dex to buy 
+    const reserves_on_dex_to_buy =
+      await getReserves(dex_1_PairContract)
+    const reserves_on_dex_to_sell =
+      await getReserves(dex_2_PairContract)
+
+    // interim token reserves
+    token1_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token1.index_Inside_Dex1_Pair]
+    token1_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token1.index_Inside_Dex2_Pair]
+
+    // main token reserves
+    token0_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token0.index_Inside_Dex1_Pair]
+    token0_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token0.index_Inside_Dex2_Pair]
+
+  } else if (dex_to_buy.Name == dex_2.Name) {
+
+    // DEX 2 is the dex to buy 
+    const reserves_on_dex_to_buy =
+      await getReserves(dex_2_PairContract)
+    const reserves_on_dex_to_sell =
+      await getReserves(dex_1_PairContract)
+
+    // interim token reserves
+    token1_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token1.index_Inside_Dex2_Pair]
+    token1_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token1.index_Inside_Dex1_Pair]
+
+    // main token reserves
+    token0_reserves_on_dex_to_buy =
+      reserves_on_dex_to_buy[token0.index_Inside_Dex2_Pair]
+    token0_reserves_on_dex_to_sell =
+      reserves_on_dex_to_sell[token0.index_Inside_Dex1_Pair]
+
+  } else {
+    // weird shit
+    throw "cannot determine DEXes to get token reserves";
+  }
+
+  // simalation stuff mapping
+  const interim_token_reserves_on_dex_to_buy_for_simulation = 
+    token1_reserves_on_dex_to_buy;
+  const interim_token_reserves_on_dex_to_sell_for_simulation = 
+    token1_reserves_on_dex_to_sell;
+  const main_token_reserves_on_dex_to_buy_for_simulation = 
+    token0_reserves_on_dex_to_buy;
+  const main_token_reserves_on_dex_to_sell_for_simulation = 
+    token0_reserves_on_dex_to_sell;
+
+  console.log(`\nInterim token reserves on DEX TO BUY => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_buy, token1.decimals)}`)
+  console.log(`Interim token reserves on DEX TO SELL => \t${ethers.utils.formatUnits(token1_reserves_on_dex_to_sell, token1.decimals) }`)
+
+  const default_interim_token_amount_from_simulation = 
+    getDefaultArbitrageAmount_simulated(
+      DEFAULT_ARBITRAGE_AMOUNT,
+      token0,
+      main_token_reserves_on_dex_to_buy_for_simulation,
+      interim_token_reserves_on_dex_to_buy_for_simulation
+    )
+
+  // something failed
+  if (!default_interim_token_amount_from_simulation) {
+    set_local_state_message("Default arbitrage amount simulation failed")
+    return state;
+  }
+
+  const default_amount_profit_simulated =
+    determineProfitForInterimTokenAmount_simulated(
+      default_interim_token_amount_from_simulation,
+      interim_token_reserves_on_dex_to_buy_for_simulation,
+      interim_token_reserves_on_dex_to_sell_for_simulation,
+      main_token_reserves_on_dex_to_buy_for_simulation,
+      main_token_reserves_on_dex_to_sell_for_simulation
+    ) 
+
+  // something failed during default amount check
+  if (!default_amount_profit_simulated.success) {
+    set_local_state_message("Default arbitrage amount profit simulation failed")
+    return state;
+  }
+
+  // if the default amount is not profitable, it's not worth continuing
+  if (!default_amount_profit_simulated.profitable) {
+    update_local_state(
+      default_amount_profit_simulated.profit, 
+      default_amount_profit_simulated.main_token_amount_required_to_buy, 
+      default_amount_profit_simulated.interim_token_amount_to_verify, 
+      -1,
+      "Default arbitrage amount not profitable"
+    )
+    return state;
+  }
+
+  // if we reached this part
+  // it means at least the default amount was profitable 
+  // and we should save it
+  update_local_state(
+    default_amount_profit_simulated.profit, 
+    default_amount_profit_simulated.main_token_amount_required_to_buy, 
+    default_amount_profit_simulated.interim_token_amount_to_verify, 
+    0,
+    "Default arbitrage amount is profitable"
+  )
+
+  // various ranges we test for higst profit
+  const interim_token_ratios = [
+    0.001,
+    0.0025,
+    0.005,
+    0.0075,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ];
+
+  for (let i = 0; i < interim_token_ratios.length; i++) {
+
+    const ratio = interim_token_ratios[i];
+    const interim_token_reserve_part =
+      interim_token_reserves_on_dex_to_buy.times(ratio).round();
+
+    const simulated_profit =
+      await determineProfitForInterimTokenAmount_simulated(
+        interim_token_reserve_part.toFixed(),
+        interim_token_reserves_on_dex_to_buy_for_simulation,
+        interim_token_reserves_on_dex_to_sell_for_simulation,
+        main_token_reserves_on_dex_to_buy_for_simulation,
+        main_token_reserves_on_dex_to_sell_for_simulation
+      );
+
+    if (!simulated_profit.profitable) {
+      // if the range is not profitable, we need to break and use previous one
+      break;
+    } else {
+      // udpate state if profit is bigger than the current one
+      if (simulated_profit.profit > state.estimated_profit_after_final_sale) {
+        update_local_state(
+          simulated_profit.profit,
+          simulated_profit.main_token_amount_required_to_buy,
+          simulated_profit.interim_token_amount_to_verify,
+          ratio,
+          "Range is profitable"
+        )
+      }
+    }
+  }
+
+  // If simulations showed any profit
+  // check if it's actually proftitable on the chain
+  if (state.estimated_profit_after_final_sale > 0) {
+    const on_chain_profit =
+      await determineProfitForInterimTokenAmount(
+        token0.address,
+        token1.address,
+        state.interim_token_arbitrage_amount,
+        dex_to_buy,
+        dex_to_sell
+      );
+
+    update_local_state(
+      on_chain_profit.profit,
+      on_chain_profit.main_token_amount_required_to_buy,
+      on_chain_profit.interim_token_amount_to_verify,
+      state.token_ratio_used,
+      "On chain profit"
+    )
+  }
+
+  return state;
+}
+
 
 const attemptArbitrage = async (
   account,
