@@ -301,12 +301,12 @@ const calculateMainTokenPriceDifferencePercentage_2 = async(
     const dex_1_one_main_token_cost_in_interim = 
         ethers.utils.formatUnits(
             dex_1_one_main_token_cost_in_interim_in_wei, 
-            main_token.decimals
+            interim_token.decimals
         );
     const dex_2_one_main_token_cost_in_interim = 
         ethers.utils.formatUnits(
             dex_2_one_main_token_cost_in_interim_in_wei, 
-            main_token.decimals
+            interim_token.decimals
         );
 
     // rounded and calculate difference percentage

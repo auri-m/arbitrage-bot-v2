@@ -58,19 +58,8 @@ const main = async () => {
 
     const token_to_swap = interim_token;
     const token_to_receive = main_token;
-    const wallet_to_impersonate = "0x63dfe4e34a3bfc00eb0220786238a7c6cef8ffc4";
-    const token_amount_to_swap = "1000";
-
-    const prices_before = await calculatePriceForTokens(
-        dex_to_swap_pair_contract, 
-        main_token, 
-        interim_token
-    )
-    const prices_another = await calculatePriceForTokens(
-        other_dex_pair_contract, 
-        main_token, 
-        interim_token
-    )
+    const wallet_to_impersonate = "0x0AFF6665bB45bF349489B20E225A6c5D78E2280F";
+    const token_amount_to_swap = "10000";
 
     const new_main_token_price_before = 
         await getMainTokenPriceOnDex(
@@ -97,12 +86,6 @@ const main = async () => {
         token_amount_to_swap
     )
 
-    const prices_after = await calculatePriceForTokens(
-        dex_to_swap_pair_contract, 
-        main_token, 
-        interim_token
-    )
-
     const new_main_token_price_after = 
         await getMainTokenPriceOnDex(
             dex_to_swap, 
@@ -111,18 +94,11 @@ const main = async () => {
         )
 
     // resulting price difference
-    console.log("\nMathematical price")
-    console.table({
-        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(prices_before.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
-        'Main Token Price After': `1 ${main_token.symbol} = ${Number(prices_after.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
-        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(prices_another.one_main_token_cost_in_interim)} ${interim_token.symbol}`,
-    })
-
     console.log("\nDEX price")
     console.table({
-        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_before, token_to_receive.decimals))} ${interim_token.symbol}`,
-        'Main Token Price After': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_after, token_to_receive.decimals))} ${interim_token.symbol}`,
-        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_other, token_to_receive.decimals))} ${interim_token.symbol}`,
+        'Main Token Price Before': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_before, token_to_swap.decimals))} ${token_to_swap.symbol}`,
+        'Main Token Price After': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_after, token_to_swap.decimals))} ${token_to_swap.symbol}`,
+        'Main Token Price On Other Dex': `1 ${main_token.symbol} = ${Number(ethers.utils.formatUnits(new_main_token_price_other, token_to_swap.decimals))} ${token_to_swap.symbol}`,
     })
 }
 
